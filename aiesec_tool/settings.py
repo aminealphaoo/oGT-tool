@@ -38,8 +38,8 @@ INSTALLED_APPS = [
     "partners",
     "dashboard",
     "automation",
-    'sslserver',
-    "django_extensions"
+    "sslserver",
+    "django_extensions",
 ]
 
 MIDDLEWARE = [
