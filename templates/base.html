@@ -54,10 +54,8 @@
         .stat-card-yellow { border-left-color: var(--aiesec-yellow); }
         .stat-card-cyan { border-left-color: var(--aiesec-cyan); }
 
-        /* ── Dark mode ────────────────────────────────────────── */
         [data-bs-theme="dark"] {
             --aiesec-blue: #5ba4f7;
-            --aiesec-dark: #e0e0e0;
             --aiesec-cyan: #4dd4e0;
             --aiesec-orange: #f77a65;
             --aiesec-green: #4dd4a0;
@@ -78,7 +76,6 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg bg-white shadow-sm sticky-top">
         <div class="container-fluid px-4">
             <a class="navbar-brand" href="/">
@@ -116,25 +113,24 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.view_name == 'leaderboard' %}active{% endif %}" href="/dashboard/leaderboard/">
+                        <a class="nav-link {% if request.resolver_match.view_name == 'leaderboard' %}active{% endif %}" href="/leaderboard/">
                             <i class="bi bi-trophy me-1"></i>Board
                         </a>
                     </li>
                     {% if is_vp or is_tl %}
                     <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.view_name == 'workload' %}active{% endif %}" href="/dashboard/workload/">
+                        <a class="nav-link {% if request.resolver_match.view_name == 'workload' %}active{% endif %}" href="/workload/">
                             <i class="bi bi-bar-chart-steps me-1"></i>Workload
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.view_name == 'compare' %}active{% endif %}" href="/dashboard/compare/">
+                        <a class="nav-link {% if request.resolver_match.view_name == 'compare' %}active{% endif %}" href="/compare/">
                             <i class="bi bi-bar-chart me-1"></i>Compare
                         </a>
                     </li>
                     {% endif %}
                 </ul>
 
-                <!-- Notification badges -->
                 <div class="d-flex align-items-center gap-2 me-3">
                     {% if nav_stale_count %}
                     <a href="/eps/?stage=" class="text-decoration-none" title="{{ nav_stale_count }} stale EPs">
@@ -146,13 +142,11 @@
                         <span class="badge bg-secondary"><i class="bi bi-person-x me-1"></i>{{ nav_unassigned_count }}</span>
                     </a>
                     {% endif %}
-                    <!-- Dark mode toggle -->
                     <button class="btn btn-sm btn-outline-secondary" id="darkToggle" title="Toggle dark mode" onclick="toggleDark()">
                         <i class="bi bi-moon-stars"></i>
                     </button>
                 </div>
 
-                <!-- Identity badge -->
                 {% if current_member %}
                 <div class="identity-badge d-flex align-items-center gap-2">
                     <span class="text-muted">
@@ -171,10 +165,8 @@
         </div>
     </nav>
 
-    <!-- Breadcrumb -->
     {% block breadcrumbs %}{% endblock %}
 
-    <!-- Flash messages -->
     {% if messages %}
     <div class="container-fluid px-4 mt-2">
         {% for msg in messages %}
@@ -186,7 +178,6 @@
     </div>
     {% endif %}
 
-    <!-- Content -->
     <main class="container-fluid px-4 py-3">
         {% block content %}{% endblock %}
     </main>
