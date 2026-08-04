@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{% if is_create %}New EP{% else %}Edit {{ ep.full_name }}{% endif %} — AIESEC LC Carthage{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-{% if is_create %}person-plus{% else %}pencil{% endif %} me-2"></i>
+                    {% if is_create %}New Exchange Participant{% else %}Edit: {{ ep.full_name }}{% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <!-- Personal -->
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Full Name *</label>
+                            {{ form.full_name }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Phone</label>
+                            {{ form.phone }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Email</label>
+                            {{ form.email }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Socials</label>
+                            {{ form.socials }}
+                        </div>
+
+                        <!-- Academic -->
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">University</label>
+                            {{ form.university }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Major</label>
+                            {{ form.major }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Year of Study</label>
+                            {{ form.year_of_study }}
+                        </div>
+
+                        <!-- Pipeline -->
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Track *</label>
+                            {{ form.track }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Stage</label>
+                            {{ form.current_stage }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Assigned To</label>
+                            {{ form.assigned_to }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Term</label>
+                            {{ form.term }}
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Matched Opportunity</label>
+                            {{ form.matched_opportunity }}
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>
+                            {% if is_create %}Create EP{% else %}Save Changes{% endif %}
+                        </button>
+                        <a href="{% if is_create %}{% url 'ep_list' %}{% else %}{% url 'ep_detail' ep.pk %}{% endif %}" class="btn btn-outline-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Add Bootstrap form classes to Django form fields
+document.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(el => {
+    if (el.tagName === 'SELECT') el.classList.add('form-select', 'form-select-sm');
+    else if (el.tagName === 'TEXTAREA') el.classList.add('form-control', 'form-control-sm');
+    else el.classList.add('form-control', 'form-control-sm');
+});
+</script>
+{% endblock %}

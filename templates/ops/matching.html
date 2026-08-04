@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Matching — AIESEC LC Carthage{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-0"><i class="bi bi-link-45deg me-2" style="color: var(--aiesec-cyan);"></i>Matching Helper</h4>
+        <p class="text-muted small mb-0 mt-1">Match EPs at "Matched with opp" to IRs with open opportunities</p>
+    </div>
+</div>
+
+<!-- Track selector -->
+<div class="filter-bar">
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <span class="fw-semibold small me-2">Track:</span>
+        {% for val, label in tracks %}
+        <a href="?track={{ val }}" class="btn btn-sm {% if current_track == val %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </form>
+</div>
+
+<!-- Stats row -->
+<div class="row g-2 mb-3">
+    <div class="col-auto">
+        <span class="badge bg-warning text-dark fs-6">{{ ep_count }} EP{{ ep_count|pluralize }} waiting</span>
+    </div>
+    <div class="col-auto">
+        <span class="badge bg-success fs-6">{{ ir_count }} IR{{ ir_count|pluralize }} with open opps</span>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Left: EPs waiting for a match -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-people me-2"></i>
+                    EPs at "Matched with opp"
+                    <span class="badge bg-warning text-dark ms-1">{{ ep_count }}</span>
+                </h6>
+            </div>
+            <div class="card-body p-0" style="max-height: 65vh; overflow-y: auto;">
+                {% for ep in unmatched_eps %}
+                <div class="px-3 py-3 border-bottom">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <a href="{% url 'ep_detail' ep.pk %}" class="fw-semibold text-decoration-none d-block">
+                                {{ ep.full_name }}
+                            </a>
+                            <div class="small text-muted mt-1">
+                                {{ ep.university|default:"—" }} · {{ ep.major|default:"—" }} · Year {{ ep.year_of_study|default:"?" }}
+                            </div>
+                        </div>
+                        {% if ep.is_stale %}
+                        <span class="badge bg-warning text-dark stale-warning">
+                            <i class="bi bi-clock-history"></i> {{ ep.idle_days }}d
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="d-flex gap-1 flex-wrap small">
+                        <span class="badge bg-light text-dark">{{ ep.get_track_display }}</span>
+                        <span class="badge bg-light text-dark">{{ ep.assigned_to.name|default:"Unassigned" }}</span>
+                        {% if ep.matched_opportunity %}
+                        <span class="badge bg-info text-dark">
+                            Current: {{ ep.matched_opportunity.ir.entity_name }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if ep.socials %}
+                    <div class="small text-muted mt-1">
+                        <i class="bi bi-chat-dots me-1"></i>{{ ep.socials|truncatechars:60 }}
+                    </div>
+                    {% endif %}
+                    <!-- Match form -->
+                    {% if all_open_opps %}
+                    <form method="post" action="{% url 'matching_match' %}" class="mt-2 d-flex gap-1">
+                        {% csrf_token %}
+                        <input type="hidden" name="ep_id" value="{{ ep.pk }}">
+                        <select name="opp_id" class="form-select form-select-sm" style="font-size: .75rem;">
+                            <option value="">Match to opportunity…</option>
+                            {% for opp in all_open_opps %}
+                            <option value="{{ opp.pk }}">{{ opp.ir.entity_name }} — {{ opp.get_type_display }} {{ opp.title|default:''|truncatechars:30 }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size: .7rem;">
+                            <i class="bi bi-link-45deg"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">No EPs waiting for a match in {{ current_track }}.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: IRs with open opportunities -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h6 class="mb-0">
+                    <i class="bi bi-building me-2"></i>
+                    IRs with Open Opportunities ({{ current_track }})
+                    <span class="badge bg-success ms-1">{{ ir_count }}</span>
+                </h6>
+            </div>
+            <div class="card-body p-0" style="max-height: 65vh; overflow-y: auto;">
+                {% for item in ir_data %}
+                <div class="border-bottom">
+                    <div class="px-3 py-2 bg-light d-flex justify-content-between align-items-center">
+                        <div>
+                            <a href="{% url 'ir_detail' item.ir.pk %}" class="fw-semibold text-decoration-none">
+                                {{ item.ir.entity_name }}
+                            </a>
+                            <span class="text-muted ms-1 small">{{ item.ir.country }}</span>
+                        </div>
+                        <div class="d-flex gap-2 small">
+                            <span class="text-success fw-semibold">{{ item.ir.realized_count }} realized</span>
+                            <span class="text-muted">{{ item.ir.rejection_rate }}% rejection</span>
+                        </div>
+                    </div>
+                    {% for opp in item.open_opps %}
+                    <div class="px-3 py-2 d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge bg-light text-dark me-1">{{ opp.get_type_display }}</span>
+                            <span class="small">{{ opp.title|default:"Untitled" }}</span>
+                            {% if opp.description %}
+                            <p class="mb-0 mt-1 text-muted" style="font-size: .75rem;">{{ opp.description|truncatechars:100 }}</p>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if opp.is_open %}
+                            <span class="badge bg-success">Open</span>
+                            {% endif %}
+                            {% if opp.expires_at %}
+                            <span class="text-muted ms-1" style="font-size: .7rem;">
+                                until {{ opp.expires_at|date:"M d" }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% empty %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                    <p class="mt-2 mb-0">No IRs with open opportunities in {{ current_track }}.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick tip -->
+<div class="text-center mt-3">
+    <p class="text-muted small mb-0">
+        <i class="bi bi-lightbulb me-1"></i>
+        Tip: Use the dropdown on each EP card to match them to an open opportunity instantly.
+    </p>
+</div>
+{% endblock %}

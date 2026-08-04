@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ lc_name }}{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <style>
+        :root {
+            --aiesec-blue: #037EF3;
+            --aiesec-dark: #0A1426;
+            --aiesec-cyan: #00C1D5;
+            --aiesec-orange: #F85A40;
+            --aiesec-green: #30C39E;
+            --aiesec-yellow: #FFC845;
+        }
+        body { background: #f5f7fa; font-family: system-ui, -apple-system, sans-serif; }
+        .navbar-brand { font-weight: 700; color: var(--aiesec-blue) !important; }
+        .nav-link.active { font-weight: 600; color: var(--aiesec-blue) !important; }
+
+        .card-stat { border-left: 4px solid var(--aiesec-blue); transition: transform .15s; }
+        .card-stat:hover { transform: translateY(-1px); }
+        .card-stat .stat-number { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+        .card-stat .stat-label { font-size: .85rem; color: #6c757d; text-transform: uppercase; letter-spacing: .5px; }
+
+        .stage-badge { font-size: .75rem; padding: .25em .65em; border-radius: 20px; font-weight: 500; }
+        .stage-open { background: #e9ecef; color: #495057; }
+        .stage-matched { background: #fff3cd; color: #856404; }
+        .stage-applied { background: #cff4fc; color: #055160; }
+        .stage-accepted { background: #d1e7dd; color: #0a3622; }
+        .stage-approved { background: #cfe2ff; color: #052c65; }
+        .stage-papers { background: #e8daef; color: #4a235a; }
+        .stage-realized { background: #d1f2eb; color: #0a5c44; }
+
+        .problem-active { background: #f8d7da; color: #842029; }
+        .problem-fixed { background: #d1e7dd; color: #0a3622; }
+
+        .stale-warning { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.6; } }
+
+        .filter-bar { background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+
+        .timeline-item { padding: .75rem 1rem; border-left: 3px solid var(--aiesec-cyan); margin-bottom: .5rem; background: #f8f9fa; border-radius: 0 6px 6px 0; }
+        .timeline-item .ts { font-size: .75rem; color: #6c757d; }
+
+        .identity-badge { font-size: .8rem; }
+        .identity-badge .btn-sm { font-size: .7rem; padding: .15rem .5rem; }
+
+        .stat-card-green { border-left-color: var(--aiesec-green); }
+        .stat-card-orange { border-left-color: var(--aiesec-orange); }
+        .stat-card-yellow { border-left-color: var(--aiesec-yellow); }
+        .stat-card-cyan { border-left-color: var(--aiesec-cyan); }
+
+        /* ── Dark mode ────────────────────────────────────────── */
+        [data-bs-theme="dark"] {
+            --aiesec-blue: #5ba4f7;
+            --aiesec-dark: #e0e0e0;
+            --aiesec-cyan: #4dd4e0;
+            --aiesec-orange: #f77a65;
+            --aiesec-green: #4dd4a0;
+            --aiesec-yellow: #ffd966;
+        }
+        [data-bs-theme="dark"] body { background: #1a1d23; }
+        [data-bs-theme="dark"] .navbar { background: #242730 !important; }
+        [data-bs-theme="dark"] .card { background: #2a2d37; border-color: #3a3d47; }
+        [data-bs-theme="dark"] .card-header { background: #242730 !important; }
+        [data-bs-theme="dark"] .filter-bar { background: #2a2d37; }
+        [data-bs-theme="dark"] .table { color: #d0d0d0; }
+        [data-bs-theme="dark"] .timeline-item { background: #2a2d37; }
+        [data-bs-theme="dark"] .bg-white { background: #2a2d37 !important; }
+        [data-bs-theme="dark"] .text-muted { color: #999 !important; }
+        [data-bs-theme="dark"] .stage-badge.bg-light { background: #3a3d47 !important; color: #ccc !important; }
+        [data-bs-theme="dark"] .table-light { background: #242730; color: #ccc; }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg bg-white shadow-sm sticky-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-globe2 me-1"></i>{{ lc_name }}
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.view_name == 'dashboard' %}active{% endif %}" href="/">
+                            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'ep_' in request.resolver_match.view_name %}active{% endif %}" href="/eps/">
+                            <i class="bi bi-people me-1"></i>EPs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if 'ir_' in request.resolver_match.view_name %}active{% endif %}" href="/irs/">
+                            <i class="bi bi-building me-1"></i>IRs
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.view_name == 'matching' %}active{% endif %}" href="/matching/">
+                            <i class="bi bi-link-45deg me-1"></i>Matching
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.view_name == 'problem_list' %}active{% endif %}" href="/problems/">
+                            <i class="bi bi-flag me-1"></i>Problems
+                            {% if nav_problem_count %}<span class="badge bg-danger ms-1">{{ nav_problem_count }}</span>{% endif %}
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.view_name == 'leaderboard' %}active{% endif %}" href="/dashboard/leaderboard/">
+                            <i class="bi bi-trophy me-1"></i>Board
+                        </a>
+                    </li>
+                    {% if is_vp or is_tl %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.view_name == 'workload' %}active{% endif %}" href="/dashboard/workload/">
+                            <i class="bi bi-bar-chart-steps me-1"></i>Workload
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.resolver_match.view_name == 'compare' %}active{% endif %}" href="/dashboard/compare/">
+                            <i class="bi bi-bar-chart me-1"></i>Compare
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                <!-- Notification badges -->
+                <div class="d-flex align-items-center gap-2 me-3">
+                    {% if nav_stale_count %}
+                    <a href="/eps/?stage=" class="text-decoration-none" title="{{ nav_stale_count }} stale EPs">
+                        <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>{{ nav_stale_count }}</span>
+                    </a>
+                    {% endif %}
+                    {% if nav_unassigned_count %}
+                    <a href="/eps/?assigned=" class="text-decoration-none" title="{{ nav_unassigned_count }} unassigned EPs">
+                        <span class="badge bg-secondary"><i class="bi bi-person-x me-1"></i>{{ nav_unassigned_count }}</span>
+                    </a>
+                    {% endif %}
+                    <!-- Dark mode toggle -->
+                    <button class="btn btn-sm btn-outline-secondary" id="darkToggle" title="Toggle dark mode" onclick="toggleDark()">
+                        <i class="bi bi-moon-stars"></i>
+                    </button>
+                </div>
+
+                <!-- Identity badge -->
+                {% if current_member %}
+                <div class="identity-badge d-flex align-items-center gap-2">
+                    <span class="text-muted">
+                        <i class="bi bi-person-circle me-1"></i>{{ current_member.name }}
+                    </span>
+                    <span class="badge bg-secondary">{{ current_member.get_role_display }}</span>
+                    <a href="/members/picker/?next={{ request.path }}" class="btn btn-outline-secondary btn-sm" title="Switch identity">
+                        <i class="bi bi-arrow-repeat"></i>
+                    </a>
+                    <a href="/members/clear/" class="btn btn-outline-danger btn-sm" title="Clear">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Breadcrumb -->
+    {% block breadcrumbs %}{% endblock %}
+
+    <!-- Flash messages -->
+    {% if messages %}
+    <div class="container-fluid px-4 mt-2">
+        {% for msg in messages %}
+        <div class="alert alert-{{ msg.tags }} alert-dismissible fade show mb-0" role="alert">
+            {{ msg }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Content -->
+    <main class="container-fluid px-4 py-3">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function(){
+        var stored = localStorage.getItem('aiesec-dark-mode');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (stored === 'dark' || (!stored && prefersDark)) {
+            document.documentElement.setAttribute('data-bs-theme', 'dark');
+        }
+        window.toggleDark = function(){
+            var isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            var next = isDark ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-bs-theme', next);
+            localStorage.setItem('aiesec-dark-mode', next);
+        };
+    })();
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

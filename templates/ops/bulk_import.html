@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Bulk Import — {{ lc_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h4 class="mb-0"><i class="bi bi-upload me-2"></i>Bulk Import EPs</h4>
+        <p class="text-muted small mb-0 mt-1">Import EPs from a CSV file (exported from Google Sheets).</p>
+    </div>
+    <a href="{% url 'ep_list' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Back to EPs
+    </a>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Upload CSV</h6></div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">CSV File</label>
+                        <input type="file" name="csv_file" class="form-control" accept=".csv" required>
+                        <div class="form-text">Max 10 MB. First row must be a header.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload me-1"></i>Import EPs
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>CSV Format</h6></div>
+            <div class="card-body small">
+                <p class="mb-2">Your CSV must have <strong>at least a <code>full_name</code> column</strong>. These columns are recognized:</p>
+                <table class="table table-sm table-borderless mb-0">
+                    <tr><td class="text-muted" style="width:130px;"><code>full_name</code> <span class="text-danger">*</span></td><td>EP's full name</td></tr>
+                    <tr><td class="text-muted"><code>name</code></td><td>Alias for full_name</td></tr>
+                    <tr><td class="text-muted"><code>phone</code></td><td>Phone number</td></tr>
+                    <tr><td class="text-muted"><code>email</code></td><td>Email address</td></tr>
+                    <tr><td class="text-muted"><code>socials</code> / <code>whatsapp</code></td><td>WhatsApp / Messenger</td></tr>
+                    <tr><td class="text-muted"><code>university</code></td><td>University name</td></tr>
+                    <tr><td class="text-muted"><code>major</code></td><td>Field of study</td></tr>
+                    <tr><td class="text-muted"><code>year_of_study</code> / <code>year</code></td><td>Year (1-5)</td></tr>
+                    <tr><td class="text-muted"><code>track</code></td><td>GT or GTe</td></tr>
+                    <tr><td class="text-muted"><code>current_stage</code> / <code>stage</code></td><td>Pipeline stage (default: open)</td></tr>
+                    <tr><td class="text-muted"><code>term</code></td><td>Term (default: 2026-S1)</td></tr>
+                </table>
+                <hr>
+                <p class="mb-0 text-muted"><strong>Tip:</strong> Export your Google Sheet as CSV, then upload here. EPs with duplicate phone/email will be skipped.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

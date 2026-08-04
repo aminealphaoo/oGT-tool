@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Term Comparison — {{ lc_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-bar-chart me-2" style="color: var(--aiesec-cyan);"></i>Term Comparison</h4>
+</div>
+
+<!-- Term selector -->
+<div class="filter-bar">
+    <form method="get" class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="fw-semibold small">Compare:</span>
+        <select name="term1" class="form-select form-select-sm" style="width:auto;">
+            {% for t in terms %}<option value="{{ t }}" {% if t == current_term %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+        <span class="text-muted small">vs</span>
+        <select name="term2" class="form-select form-select-sm" style="width:auto;">
+            <option value="">—</option>
+            {% for t in terms %}<option value="{{ t }}" {% if t == prev_term %}selected{% endif %}>{{ t }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Compare</button>
+    </form>
+</div>
+
+{% if not prev_term %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-bar-chart" style="font-size: 3rem;"></i>
+    <p class="mt-3">Select two terms above to compare.</p>
+</div>
+{% else %}
+<div class="row g-3">
+    <!-- Stat cards -->
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-3">
+                <div class="stat-number">{{ current_stats.total }}</div>
+                <div class="stat-label">Total EPs ({{ current_term }})</div>
+                {% if delta %}<small class="{% if delta.total > 0 %}text-success{% elif delta.total < 0 %}text-danger{% else %}text-muted{% endif %}">{{ delta.total|stringformat:"+d" }}</small>{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-3">
+                <div class="stat-number text-success">{{ current_stats.realized }}</div>
+                <div class="stat-label">Realized</div>
+                {% if delta %}<small class="{% if delta.realized > 0 %}text-success{% elif delta.realized < 0 %}text-danger{% else %}text-muted{% endif %}">{{ delta.realized|stringformat:"+d" }}</small>{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-3">
+                <div class="stat-number text-info">{{ current_stats.conversion }}%</div>
+                <div class="stat-label">Conversion Rate</div>
+                {% if delta %}<small class="{% if delta.conversion > 0 %}text-success{% elif delta.conversion < 0 %}text-danger{% else %}text-muted{% endif %}">{{ delta.conversion|stringformat:"+.1f" }}pp</small>{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body text-center py-3">
+                <div class="stat-number text-warning">{{ current_stats.interactions }}</div>
+                <div class="stat-label">Interactions</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Funnel comparison -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0">{{ current_term }} Funnel</h6></div>
+            <div class="card-body">
+                {% for f in current_stats.funnel %}
+                <div class="d-flex align-items-center mb-2 small">
+                    <span class="text-muted" style="width:120px;">{{ f.label }}</span>
+                    <div class="flex-grow-1 mx-2">
+                        <div class="progress" style="height:20px;">
+                            <div class="progress-bar bg-primary" style="width:{% widthratio f.count current_stats.total 100 %}%;">{{ f.count }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0">{{ prev_term }} Funnel</h6></div>
+            <div class="card-body">
+                {% for f in prev_stats.funnel %}
+                <div class="d-flex align-items-center mb-2 small">
+                    <span class="text-muted" style="width:120px;">{{ f.label }}</span>
+                    <div class="flex-grow-1 mx-2">
+                        <div class="progress" style="height:20px;">
+                            <div class="progress-bar bg-secondary" style="width:{% widthratio f.count prev_stats.total 100 %}%;">{{ f.count }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

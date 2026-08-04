@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}{{ ir.entity_name }} — AIESEC LC Carthage{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <a href="{% url 'ir_list' %}" class="text-decoration-none text-muted small">
+            <i class="bi bi-arrow-left me-1"></i>Back to IRs
+        </a>
+        <h3 class="mb-0 mt-1">
+            {{ ir.entity_name }}
+            <small class="text-muted fs-6">{{ ir.country }}</small>
+            <span class="badge {% if ir.status == 'active' %}bg-success{% elif ir.status == 'priority' %}bg-warning text-dark{% elif ir.status == 'suspended' %}bg-danger{% else %}bg-secondary{% endif %} ms-2">{{ ir.get_status_display }}</span>
+            <span class="badge bg-light text-dark ms-1">{{ ir.get_tier_display }}</span>
+        </h3>
+    </div>
+    <a href="{% url 'ir_edit' ir.pk %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-pencil me-1"></i>Edit
+    </a>
+</div>
+
+<!-- Performance cards -->
+<div class="row g-2 mb-3">
+    <div class="col-md-2">
+        <div class="card card-stat stat-card-green py-2 px-3">
+            <div class="stat-number">{{ realized_count }}</div>
+            <div class="stat-label">Realized</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat stat-card-cyan py-2 px-3">
+            <div class="stat-number">{{ approved_count }}</div>
+            <div class="stat-label">Approved+</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat py-2 px-3">
+            <div class="stat-number">{{ total_matched }}</div>
+            <div class="stat-label">Total Matched</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat stat-card-orange py-2 px-3">
+            <div class="stat-number">{{ rejection_rate }}%</div>
+            <div class="stat-label">Rejection Rate</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat stat-card-yellow py-2 px-3">
+            <div class="stat-number">{{ ir.open_opportunities_count }}</div>
+            <div class="stat-label">Open Opps</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat py-2 px-3" style="border-left-color: #7c3aed;">
+            <div class="stat-number">{% if response_time_days %}{{ response_time_days }}d{% else %}—{% endif %}</div>
+            <div class="stat-label">Avg Response</div>
+        </div>
+    </div>
+</div>
+
+<!-- Links & contact -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body small">
+        <div class="row">
+            <div class="col-md-3"><strong>VP Contact:</strong> {{ ir.vp_contact|default:"—" }}</div>
+            <div class="col-md-3"><strong>Assigned To:</strong> {{ ir.assigned_to.name|default:"—" }}</div>
+            <div class="col-md-3"><strong>Contract:</strong> {% if ir.contract_start %}{{ ir.contract_start|date:"M Y" }} → {{ ir.contract_end|date:"M Y"|default:"open" }}{% else %}—{% endif %}</div>
+            <div class="col-md-3">
+                {% if ir.opportunities_page_link %}
+                <a href="{{ ir.opportunities_page_link }}" target="_blank" class="me-2">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Opportunities Page
+                </a>
+                {% endif %}
+            </div>
+            <div class="col-md-3">
+                {% if ir.whatsapp_group_link %}
+                <a href="{{ ir.whatsapp_group_link }}" target="_blank" class="me-2">
+                    <i class="bi bi-whatsapp me-1"></i>WhatsApp Group
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Opportunities -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-briefcase me-2"></i>Opportunities</h6>
+            </div>
+            <div class="card-body">
+                {% for opp in opportunities %}
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom small">
+                    <div>
+                        <span class="badge bg-light text-dark me-1">{{ opp.get_type_display }}</span>
+                        <span class="badge bg-light text-dark me-1">{{ opp.get_track_display }}</span>
+                        {{ opp.title|default:"Untitled" }}
+                    </div>
+                    <div class="d-flex gap-1 align-items-center">
+                        {% if opp.is_open %}
+                        <span class="badge bg-success">Open</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Closed</span>
+                        {% endif %}
+                        {% if opp.expires_at %}
+                        <span class="text-muted" style="font-size:.7rem;">until {{ opp.expires_at|date:"M d" }}</span>
+                        {% endif %}
+                        <div class="btn-group btn-group-sm ms-1">
+                            <a href="{% url 'opp_toggle' opp.pk %}" class="btn btn-outline-secondary btn-sm" style="font-size:.7rem;" title="{% if opp.is_open %}Close{% else %}Reopen{% endif %}">
+                                <i class="bi {% if opp.is_open %}bi-lock{% else %}bi-unlock{% endif %}"></i>
+                            </a>
+                            <form method="post" action="{% url 'opp_delete' opp.pk %}" style="display:inline;" onsubmit="return confirm('Delete this opportunity?')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-danger btn-sm" style="font-size:.7rem;" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-muted small text-center mb-2">No opportunities yet.</p>
+                {% endfor %}
+
+                <!-- Add opportunity form -->
+                <hr>
+                <form method="post" action="{% url 'ir_add_opportunity' ir.pk %}" class="row g-2 small">
+                    {% csrf_token %}
+                    <div class="col-md-4">
+                        <input type="text" name="title" class="form-control form-control-sm" placeholder="Title (optional)">
+                    </div>
+                    <div class="col-md-3">
+                        <select name="type" class="form-select form-select-sm">
+                            <option value="teaching">Teaching</option>
+                            <option value="it">IT</option>
+                            <option value="marketing">Marketing</option>
+                            <option value="business">Business</option>
+                            <option value="engineering">Engineering</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="track" class="form-select form-select-sm">
+                            <option value="GT">Global Talent</option>
+                            <option value="GTe">Global Teacher</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select name="is_open" class="form-select form-select-sm">
+                            <option value="true">Open</option>
+                            <option value="false">Closed</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-sm btn-primary w-100">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Linked EPs -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-link-45deg me-2"></i>Linked EPs</h6></div>
+            <div class="card-body p-0">
+                {% for ep in eps_linked %}
+                <div class="px-3 py-2 border-bottom small d-flex justify-content-between align-items-center">
+                    <div>
+                        <a href="{% url 'ep_detail' ep.pk %}" class="fw-semibold text-decoration-none">{{ ep.full_name }}</a>
+                        <span class="stage-badge stage-{{ ep.current_stage }} ms-2">{{ ep.get_current_stage_display }}</span>
+                    </div>
+                    <span class="text-muted">{{ ep.assigned_to.name|default:"—" }}</span>
+                </div>
+                {% empty %}
+                <p class="text-muted small text-center py-3">No EPs matched to this IR yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

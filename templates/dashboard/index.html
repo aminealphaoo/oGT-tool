@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ lc_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
+    <span class="text-muted small">Welcome, {{ current_member.name }}</span>
+</div>
+
+<!-- Date range filter -->
+<div class="filter-bar mb-3">
+    <form method="get" class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="fw-semibold small me-1">Period:</span>
+        <a href="?preset=all" class="btn btn-sm {% if preset == 'all' or not preset %}btn-primary{% else %}btn-outline-secondary{% endif %}">All Time</a>
+        <a href="?preset=week" class="btn btn-sm {% if preset == 'week' %}btn-primary{% else %}btn-outline-secondary{% endif %}">This Week</a>
+        <a href="?preset=month" class="btn btn-sm {% if preset == 'month' %}btn-primary{% else %}btn-outline-secondary{% endif %}">This Month</a>
+        <a href="?preset=term" class="btn btn-sm {% if preset == 'term' %}btn-primary{% else %}btn-outline-secondary{% endif %}">This Term</a>
+        <span class="text-muted small mx-1">or</span>
+        <input type="date" name="date_from" class="form-control form-control-sm" style="width:140px;" value="{{ date_from }}" onchange="this.form.preset.value=''">
+        <span class="text-muted small">→</span>
+        <input type="date" name="date_to" class="form-control form-control-sm" style="width:140px;" value="{{ date_to }}" onchange="this.form.preset.value=''">
+        <input type="hidden" name="preset" value="{{ preset }}">
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Apply</button>
+    </form>
+</div>
+
+<!-- Top stat cards -->
+<div class="row g-2 mb-3">
+    <div class="col-md-2">
+        <div class="card card-stat py-2 px-3">
+            <div class="stat-number">{{ total_eps }}</div>
+            <div class="stat-label">Total EPs</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat stat-card-green py-2 px-3">
+            <div class="stat-number">{{ total_realized }}</div>
+            <div class="stat-label">Realized</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat stat-card-orange py-2 px-3">
+            <div class="stat-number">{{ total_problems }}</div>
+            <div class="stat-label">Problem Cases</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat stat-card-yellow py-2 px-3">
+            <div class="stat-number">{{ total_stale }}</div>
+            <div class="stat-label">Stale Cases</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat stat-card-cyan py-2 px-3">
+            <div class="stat-number">{{ total_irs }}</div>
+            <div class="stat-label">IR Partners</div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card card-stat stat-card-green py-2 px-3">
+            <div class="stat-number">{{ open_opps }}</div>
+            <div class="stat-label">Open Opps</div>
+        </div>
+    </div>
+</div>
+
+<!-- Forecast row -->
+{% if forecast.pipeline_value %}
+<div class="row g-2 mb-3 small">
+    <div class="col-auto">
+        <span class="badge bg-info-subtle text-info fs-6">
+            <i class="bi bi-graph-up-arrow me-1"></i>{{ forecast.pipeline_value }} EPs in pipeline
+        </span>
+    </div>
+    <div class="col-auto">
+        <span class="badge bg-success-subtle text-success fs-6">
+            <i class="bi bi-lightning me-1"></i>{{ forecast.realized_last_30 }} realized / 30d
+        </span>
+    </div>
+    {% if forecast.forecast_realized > 0 %}
+    <div class="col-auto">
+        <span class="badge bg-primary-subtle text-primary fs-6">
+            <i class="bi bi-crystal-ball me-1"></i>~{{ forecast.projected_total }} projected by term end
+        </span>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Date-filtered period -->
+<div class="row g-2 mb-3 small">
+    <div class="col-auto">
+        <span class="text-muted">
+            {% if preset == 'week' %}This week{% elif preset == 'month' %}This month{% elif preset == 'term' %}This term{% elif date_from %}Custom range{% else %}All time{% endif %}:
+        </span>
+        <span class="badge bg-success ms-1">{{ realized_period }} realized</span>
+        <span class="badge bg-info ms-1">{{ interactions_period }} interactions</span>
+        {% if new_eps_period %}<span class="badge bg-secondary ms-1">{{ new_eps_period }} new EPs</span>{% endif %}
+    </div>
+    <div class="col-auto ms-auto">
+        {% if last_sync %}
+        <span class="text-muted small">
+            <i class="bi bi-cloud-check me-1 text-success"></i>EXPA synced: {{ last_sync.finished_at|date:"M d, H:i" }} (+{{ last_sync.created_count }})
+        </span>
+        {% endif %}
+        <form method="post" action="{% url 'trigger_expa_sync' %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-primary ms-2" title="Sync EPs from EXPA">
+                <i class="bi bi-cloud-download me-1"></i>Sync EXPA
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Funnel chart -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-bar-chart me-2"></i>EP Funnel</h6></div>
+            <div class="card-body">
+                <canvas id="funnelChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent activity -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h6></div>
+            <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
+                {% for ep in recent_eps %}
+                <div class="px-3 py-2 border-bottom small d-flex justify-content-between align-items-center">
+                    <div>
+                        <a href="{% url 'ep_detail' ep.pk %}" class="fw-semibold text-decoration-none">{{ ep.full_name }}</a>
+                        <span class="stage-badge stage-{{ ep.current_stage }} ms-1">{{ ep.get_current_stage_display }}</span>
+                    </div>
+                    <span class="text-muted" style="font-size:.7rem;">{{ ep.last_activity_at|date:"M d, H:i" }}</span>
+                </div>
+                {% empty %}
+                <p class="text-muted small text-center py-3">No EPs yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Recent interactions -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-chat-dots me-2"></i>Recent Interactions</h6></div>
+            <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
+                {% for i in recent_interactions %}
+                <div class="px-3 py-2 border-bottom small">
+                    <div class="d-flex justify-content-between">
+                        <strong>{{ i.ep.full_name }}</strong>
+                        <span class="text-muted" style="font-size:.7rem;">{{ i.date|date:"M d, H:i" }}</span>
+                    </div>
+                    <p class="mb-0 text-muted" style="font-size:.8rem;">{{ i.note|truncatechars:80 }}</p>
+                    <span style="font-size:.7rem; color:#aaa;">by {{ i.author.name|default:"?" }}</span>
+                </div>
+                {% empty %}
+                <p class="text-muted small text-center py-3">No interactions yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- By Track -->
+<div class="row g-3 mt-2">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-briefcase me-2"></i>Global Talent Funnel</h6></div>
+            <div class="card-body"><canvas id="gtFunnelChart" height="180"></canvas></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-book me-2"></i>Global Teacher Funnel</h6></div>
+            <div class="card-body"><canvas id="gteFunnelChart" height="180"></canvas></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const labels = {{ stage_labels|safe }};
+const allFunnel = {{ funnel_counts|safe }};
+const gtFunnel = {{ gt_funnel|safe }};
+const gteFunnel = {{ gte_funnel|safe }};
+
+const chartColors = ['#e9ecef', '#fff3cd', '#cff4fc', '#d1e7dd', '#cfe2ff', '#e8daef', '#e8daef', '#d1f2eb', '#30C39E'];
+
+function makeFunnel(canvasId, data, label) {
+    new Chart(document.getElementById(canvasId), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: label,
+                data: data,
+                backgroundColor: chartColors,
+                borderWidth: 0,
+                borderRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } },
+                x: { ticks: { font: { size: 10 } } }
+            }
+        }
+    });
+}
+
+makeFunnel('funnelChart', allFunnel, 'All EPs');
+makeFunnel('gtFunnelChart', gtFunnel, 'Global Talent');
+makeFunnel('gteFunnelChart', gteFunnel, 'Global Teacher');
+</script>
+{% endblock %}

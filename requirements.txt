@@ -1,0 +1,9 @@
+Django>=6.0,<6.1
+psycopg2-binary>=2.9
+gunicorn>=22.0
+whitenoise>=6.7
+celery>=5.4
+redis>=5.1
+python-decouple>=3.8
+dj-database-url>=2.3
+django-sslserver
