@@ -28,7 +28,7 @@ def sync_expa_eps(sync_log_id=None):
     from urllib.request import Request, urlopen
 
     config = SiteConfig.get()
-    token = config.expa_access_token or "e316ebe109dd84ed16734e5161a2d236d0a7e6daf499941f7c110078e3c75493"
+    token = config.expa_access_token or "5zPLES-3w6pq82iPrXgojR3JoV99Qnx6kogE-yJE0EY"
     api_url = f"https://api.aiesec.org/graphql?access_token={token}"
 
     from core.models import SyncLog
