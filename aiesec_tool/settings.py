@@ -118,10 +118,12 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 # ── Admin shared password ─────────────────────────────────────────────
 ADMIN_SHARED_PASSWORD = config("ADMIN_SHARED_PASSWORD", default="aiesec-carthage-admin")
 
-# ── Celery (prepared for Phase 2) ─────────────────────────────────────
+# ── Celery (Upstash Redis — free 256 MB) ───────────────────────────
 CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
 CELERY_TIMEZONE = "Africa/Tunis"
 CELERY_TASK_TRACK_STARTED = True
+# SSL for Upstash (rediss:// handled automatically by Celery)
+CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": "CERT_NONE"}
 
 # ── File uploads ──────────────────────────────────────────────────────
 MEDIA_URL = "/media/"
