@@ -38,7 +38,6 @@ INSTALLED_APPS = [
     "partners",
     "dashboard",
     "automation",
-    "sslserver",
     "django_extensions",
 ]
 
@@ -129,9 +128,10 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # ── Email ──────────────────────────────────────────────────────────────
-# Default: console backend (prints to stdout). Switch to SMTP in production.
-EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
-EMAIL_HOST = config("EMAIL_HOST", default="")
+# Default: SMTP via Brevo (free tier — 300 emails/day).
+# Falls back to console backend if no SMTP credentials are set.
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = config("EMAIL_HOST", default="smtp-relay.brevo.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
