@@ -39,92 +39,33 @@ def dashboard(request):
     stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
 
     if date_from:
-        # ── Date-filtered mode: count EPs by stage within the period ──
-        # For each stage, count distinct EPs whose StageHistory shows they
-        # entered that stage during the period.
-        funnel_counts = []
-        gt_funnel = []
-        gte_funnel = []
-
-        for s in STAGE_ORDER:
-            sh_qs = StageHistory.objects.filter(
-                ep__in=eps,
-                stage=s,
-                changed_at__date__gte=date_from,
-            )
-            if date_to:
-                sh_qs = sh_qs.filter(changed_at__date__lte=date_to)
-            funnel_counts.append(sh_qs.values("ep").distinct().count())
-
-            # By track
-            gt_funnel.append(
-                sh_qs.filter(ep__track="GT").values("ep").distinct().count()
-            )
-            gte_funnel.append(
-                sh_qs.filter(ep__track="GTe").values("ep").distinct().count()
-            )
-
-        # EPs that had activity in the period
-        eps_with_activity = StageHistory.objects.filter(
-            ep__in=eps,
-            changed_at__date__gte=date_from,
+        # ── Date-filtered mode: snapshot of EPs that were created or active in the period ──
+        # Filter: EPs created during the period OR EPs that had activity during the period
+        eps_filtered = eps.filter(
+            Q(created_at__date__gte=date_from) |
+            Q(last_activity_at__date__gte=date_from)
         )
         if date_to:
-            eps_with_activity = eps_with_activity.filter(changed_at__date__lte=date_to)
-        active_ep_ids = set(eps_with_activity.values_list("ep_id", flat=True).distinct())
-        active_eps = eps.filter(pk__in=active_ep_ids)
+            eps_filtered = eps_filtered.filter(
+                Q(created_at__date__lte=date_to) |
+                Q(last_activity_at__date__lte=date_to)
+            )
 
-        total_eps = len(active_ep_ids)
-        total_realized = StageHistory.objects.filter(
-            ep__in=eps, stage="realized",
-            changed_at__date__gte=date_from,
-        )
-        if date_to:
-            total_realized = total_realized.filter(changed_at__date__lte=date_to)
-        total_realized = total_realized.values("ep").distinct().count()
+        funnel_counts = [eps_filtered.filter(current_stage=s).count() for s in STAGE_ORDER]
+        gt_funnel = [eps_filtered.filter(current_stage=s, track="GT").count() for s in STAGE_ORDER]
+        gte_funnel = [eps_filtered.filter(current_stage=s, track="GTe").count() for s in STAGE_ORDER]
+        total_eps = eps_filtered.count()
+        total_realized = eps_filtered.filter(current_stage="realized").count()
+        total_problems = eps_filtered.exclude(problem_flag="none").count()
 
-        total_problems = eps.filter(
-            problem_flag__in=["fix_ep_problem", "fix_ir_problem"],
-            last_activity_at__date__gte=date_from,
-        )
-        if date_to:
-            total_problems = total_problems.filter(last_activity_at__date__lte=date_to)
-        total_problems = total_problems.count()
-
-        # EXPA status breakdowns — safe: try/except in case expa_status column missing
+        # EXPA status breakdowns (snapshot of filtered EPs)
         try:
-            expa_applied = eps.filter(
-                expa_status__in=["applied", "in_progress"],
-                last_activity_at__date__gte=date_from,
-            )
-            expa_accepted = eps.filter(
-                expa_status__in=["accepted_by_host", "accepted"],
-                last_activity_at__date__gte=date_from,
-            )
-            expa_approved = eps.filter(
-                expa_status__in=["approved_by_home", "approved_by_host", "approved"],
-                last_activity_at__date__gte=date_from,
-            )
-            expa_realized = eps.filter(
-                expa_status="realized",
-                last_activity_at__date__gte=date_from,
-            )
-            expa_finished = eps.filter(
-                expa_status__in=["finished", "completed"],
-                last_activity_at__date__gte=date_from,
-            )
-            if date_to:
-                expa_applied = expa_applied.filter(last_activity_at__date__lte=date_to)
-                expa_accepted = expa_accepted.filter(last_activity_at__date__lte=date_to)
-                expa_approved = expa_approved.filter(last_activity_at__date__lte=date_to)
-                expa_realized = expa_realized.filter(last_activity_at__date__lte=date_to)
-                expa_finished = expa_finished.filter(last_activity_at__date__lte=date_to)
             expa_stats = {
-                "applied": expa_applied.count(),
-                "accepted": expa_accepted.count(),
-                "approved": expa_approved.count(),
-                "realized": expa_realized.count(),
-                "finished": expa_finished.count(),
+                "applied": eps_filtered.filter(expa_status__in=["applied", "in_progress"]).count(),
+                "accepted": eps_filtered.filter(expa_status__in=["accepted_by_host", "accepted"]).count(),
+                "approved": eps_filtered.filter(expa_status__in=["approved_by_home", "approved_by_host", "approved"]).count(),
+                "realized": eps_filtered.filter(expa_status="realized").count(),
+                "finished": eps_filtered.filter(expa_status__in=["finished", "completed"]).count(),
             }
         except Exception:
             expa_stats = {"applied": 0, "accepted": 0, "approved": 0, "realized": 0, "finished": 0}
@@ -163,7 +104,7 @@ def dashboard(request):
     last_sync = SyncLog.objects.filter(status="success").order_by("-started_at").first()
 
     # Recent activity
-    interactions_qs = Interaction.objects.filter(ep__in=eps)
+    interactions_qs = Interaction.objects.filter(ep__in=(eps_filtered if date_from else eps))
     if date_from:
         interactions_qs = interactions_qs.filter(date__date__gte=date_from)
         if date_to:
@@ -172,12 +113,9 @@ def dashboard(request):
     recent_interactions = interactions_qs.select_related("ep", "author").order_by("-date")[:10]
 
     if date_from:
-        recent_eps_qs = eps.filter(last_activity_at__date__gte=date_from)
+        recent_eps = eps_filtered.order_by("-last_activity_at")[:5]
     else:
-        recent_eps_qs = eps
-    if date_to and date_from:
-        recent_eps_qs = recent_eps_qs.filter(last_activity_at__date__lte=date_to)
-    recent_eps = recent_eps_qs.order_by("-last_activity_at")[:5]
+        recent_eps = eps.order_by("-last_activity_at")[:5]
 
     realized_period = total_realized
     interactions_period = interactions_qs.count()
@@ -261,7 +199,7 @@ def leaderboard(request):
 
     teams = Team.objects.all()
 
-    interactions_qs = Interaction.objects.filter(ep__in=eps)
+    interactions_qs = Interaction.objects.filter(ep__in=(eps_filtered if date_from else eps))
     if date_from:
         interactions_qs = interactions_qs.filter(date__date__gte=date_from)
         if date_to:
