@@ -158,7 +158,7 @@ def dashboard(request):
         recent_eps = eps.order_by("-last_activity_at")[:5]
 
     if date_from:
-        realized_period = eps_active.filter(current_stage="realized").count()
+        realized_period = eps_filtered.filter(current_stage="realized").count()
     else:
         realized_period = total_realized
     interactions_period = interactions_qs.count()
