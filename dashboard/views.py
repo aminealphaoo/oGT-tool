@@ -91,41 +91,43 @@ def dashboard(request):
             total_problems = total_problems.filter(last_activity_at__date__lte=date_to)
         total_problems = total_problems.count()
 
-        # EXPA status breakdowns for the period
-        expa_applied = eps.filter(
-            expa_status__in=["applied", "in_progress"],
-            last_activity_at__date__gte=date_from,
-        )
-        expa_accepted = eps.filter(
-            expa_status__in=["accepted_by_host", "accepted"],
-            last_activity_at__date__gte=date_from,
-        )
-        expa_approved = eps.filter(
-            expa_status__in=["approved_by_home", "approved_by_host", "approved"],
-            last_activity_at__date__gte=date_from,
-        )
-        expa_realized = eps.filter(
-            expa_status="realized",
-            last_activity_at__date__gte=date_from,
-        )
-        expa_finished = eps.filter(
-            expa_status__in=["finished", "completed"],
-            last_activity_at__date__gte=date_from,
-        )
-        if date_to:
-            expa_applied = expa_applied.filter(last_activity_at__date__lte=date_to)
-            expa_accepted = expa_accepted.filter(last_activity_at__date__lte=date_to)
-            expa_approved = expa_approved.filter(last_activity_at__date__lte=date_to)
-            expa_realized = expa_realized.filter(last_activity_at__date__lte=date_to)
-            expa_finished = expa_finished.filter(last_activity_at__date__lte=date_to)
-
-        expa_stats = {
-            "applied": expa_applied.count(),
-            "accepted": expa_accepted.count(),
-            "approved": expa_approved.count(),
-            "realized": expa_realized.count(),
-            "finished": expa_finished.count(),
-        }
+        # EXPA status breakdowns — safe: try/except in case expa_status column missing
+        try:
+            expa_applied = eps.filter(
+                expa_status__in=["applied", "in_progress"],
+                last_activity_at__date__gte=date_from,
+            )
+            expa_accepted = eps.filter(
+                expa_status__in=["accepted_by_host", "accepted"],
+                last_activity_at__date__gte=date_from,
+            )
+            expa_approved = eps.filter(
+                expa_status__in=["approved_by_home", "approved_by_host", "approved"],
+                last_activity_at__date__gte=date_from,
+            )
+            expa_realized = eps.filter(
+                expa_status="realized",
+                last_activity_at__date__gte=date_from,
+            )
+            expa_finished = eps.filter(
+                expa_status__in=["finished", "completed"],
+                last_activity_at__date__gte=date_from,
+            )
+            if date_to:
+                expa_applied = expa_applied.filter(last_activity_at__date__lte=date_to)
+                expa_accepted = expa_accepted.filter(last_activity_at__date__lte=date_to)
+                expa_approved = expa_approved.filter(last_activity_at__date__lte=date_to)
+                expa_realized = expa_realized.filter(last_activity_at__date__lte=date_to)
+                expa_finished = expa_finished.filter(last_activity_at__date__lte=date_to)
+            expa_stats = {
+                "applied": expa_applied.count(),
+                "accepted": expa_accepted.count(),
+                "approved": expa_approved.count(),
+                "realized": expa_realized.count(),
+                "finished": expa_finished.count(),
+            }
+        except Exception:
+            expa_stats = {"applied": 0, "accepted": 0, "approved": 0, "realized": 0, "finished": 0}
 
     else:
         # ── All-time mode: current snapshot ──
@@ -137,13 +139,16 @@ def dashboard(request):
         total_problems = eps.exclude(problem_flag="none").count()
 
         # EXPA status breakdowns (current snapshot)
-        expa_stats = {
-            "applied": eps.filter(expa_status__in=["applied", "in_progress"]).count(),
-            "accepted": eps.filter(expa_status__in=["accepted_by_host", "accepted"]).count(),
-            "approved": eps.filter(expa_status__in=["approved_by_home", "approved_by_host", "approved"]).count(),
-            "realized": eps.filter(expa_status="realized").count(),
-            "finished": eps.filter(expa_status__in=["finished", "completed"]).count(),
-        }
+        try:
+            expa_stats = {
+                "applied": eps.filter(expa_status__in=["applied", "in_progress"]).count(),
+                "accepted": eps.filter(expa_status__in=["accepted_by_host", "accepted"]).count(),
+                "approved": eps.filter(expa_status__in=["approved_by_home", "approved_by_host", "approved"]).count(),
+                "realized": eps.filter(expa_status="realized").count(),
+                "finished": eps.filter(expa_status__in=["finished", "completed"]).count(),
+            }
+        except Exception:
+            expa_stats = {"applied": 0, "accepted": 0, "approved": 0, "realized": 0, "finished": 0}
 
     # Stale computation — always uses all-time
     stale_ep_ids = set()
