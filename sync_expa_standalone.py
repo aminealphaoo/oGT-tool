@@ -14,13 +14,21 @@ from core.models import SiteConfig, SyncLog
 from ops.models import EP
 
 
-def _expa_status_to_stage(expa_status, meta):
-    """Map EXPA application status to EP stage."""
+def _expa_status_to_stage(expa_status, meta, has_opportunity=False):
+    """
+    Map EXPA application status to EP stage.
+
+    Priority:
+    1. meta.date_realized → realized
+    2. meta.date_approved → approved
+    3. meta.date_matched OR has_opportunity (application already linked to an opp) → matched_with_opp
+    4. Fallback: map EXPA status text
+    """
     if meta.get("date_realized"):
         return "realized"
     if meta.get("date_approved"):
         return "approved"
-    if meta.get("date_matched"):
+    if meta.get("date_matched") or has_opportunity:
         return "matched_with_opp"
 
     status_map = {
@@ -118,7 +126,8 @@ def sync_expa():
                         track = "GTe"
 
                     expa_status = (app.get("status") or "").lower()
-                    stage = _expa_status_to_stage(expa_status, app.get("meta", {}))
+                    has_opp = bool(app.get("opportunity") and app["opportunity"].get("id"))
+                    stage = _expa_status_to_stage(expa_status, app.get("meta", {}), has_opportunity=has_opp)
 
                     existing = None
                     if email:

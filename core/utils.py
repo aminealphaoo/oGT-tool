@@ -11,6 +11,7 @@ PRESETS = {
     "week": 7,
     "month": 30,
     "quarter": 90,
+    "term": 180,
     "year": 365,
 }
 
@@ -20,7 +21,7 @@ def parse_date_range(request):
     Parse date_from / date_to from request.GET.
 
     Supports:
-      - ?preset=week|month|quarter|year  → rolling window from today
+      - ?preset=week|month|quarter|term|year  → rolling window from today
       - ?date_from=YYYY-MM-DD&date_to=YYYY-MM-DD  → explicit range
       - no params → all-time (returns None, None)
 
@@ -71,6 +72,7 @@ def date_context(date_from, date_to, preset):
             ("week", "Last 7 Days"),
             ("month", "Last 30 Days"),
             ("quarter", "Last 90 Days"),
+            ("term", "This Term (180d)"),
             ("year", "Last Year"),
         ],
     }

@@ -121,14 +121,19 @@
 
                         <form method="post" action="{% url 'ep_advance_stage' ep.pk %}" class="row g-3"
                               hx-post="{% url 'ep_advance_stage' ep.pk %}"
-                              hx-target="#process" hx-select="#process" hx-swap="outerHTML">
+                              hx-target="#process" hx-select="#process" hx-swap="outerHTML"
+                              hx-headers='{"HX-Request": "true"}'>
                             {% csrf_token %}
                             <div class="col-md-8">
                                 <label class="form-label small fw-semibold">Move EP to:</label>
                                 <select name="new_stage" class="form-select">
-                                    {% for val, label in advance_form.fields.new_stage.choices %}
-                                    <option value="{{ val }}" {% if val == ep.current_stage %}selected{% endif %}>{{ label }}</option>
+                                    {% if allowed_stages %}
+                                    {% for val, label in allowed_stages %}
+                                    <option value="{{ val }}">{{ label }}</option>
                                     {% endfor %}
+                                    {% else %}
+                                    <option value="">No stages available</option>
+                                    {% endif %}
                                 </select>
                             </div>
                             <div class="col-md-4 d-flex align-items-end">
@@ -146,6 +151,7 @@
                         <form method="post" action="{% url 'ep_revert_stage' ep.pk %}" class="mt-4 pt-3 border-top" 
                               hx-post="{% url 'ep_revert_stage' ep.pk %}"
                               hx-target="#process" hx-select="#process" hx-swap="outerHTML"
+                              hx-headers='{"HX-Request": "true"}' 
                               onsubmit="return confirm('Revert {{ ep.full_name }} back to {{ previous_stage }}?')">
                             {% csrf_token %}
                             <input type="hidden" name="note" value="Reverted">

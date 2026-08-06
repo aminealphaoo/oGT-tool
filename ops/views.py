@@ -14,6 +14,33 @@ from .models import EP, Attachment, Interaction, SavedFilter
 
 # ── Stage Prerequisites ────────────────────────────────────────────────
 # "hard" = blocks advance, "soft" = warns but allows
+# ── Stage Order ──────────────────────────────────────────────────────
+# Ordered list of stages — used to validate advancement (no skipping)
+STAGE_ORDER = [
+    "open", "matched_with_opp", "applied", "accepted",
+    "approved", "all_papers_done", "not_all_papers_done",
+    "do_papers", "realized",
+]
+
+STAGE_ORDER_MAP = {s: i for i, s in enumerate(STAGE_ORDER)}
+
+
+def _get_next_stage(current_stage):
+    """Return the next logical stage, or None if already at the end."""
+    idx = STAGE_ORDER_MAP.get(current_stage, -1)
+    if idx >= 0 and idx + 1 < len(STAGE_ORDER):
+        return STAGE_ORDER[idx + 1]
+    return None
+
+
+def _get_previous_stage(current_stage):
+    """Return the previous stage, or None if already at the start."""
+    idx = STAGE_ORDER_MAP.get(current_stage, -1)
+    if idx > 0:
+        return STAGE_ORDER[idx - 1]
+    return None
+
+
 STAGE_PREREQUISITES = {
     "matched_with_opp": {"hard": [], "soft": []},
     "applied": {"hard": ["matched_opportunity"], "soft": ["has_cv"]},
@@ -62,6 +89,48 @@ def _get_prereq_status_for_all_stages(ep):
     for s in stages_in_order:
         result[s] = _check_prerequisites(ep, s)
     return result
+
+
+def _render_ep_detail_process(request, ep):
+    """Re-render the process tab for HTMX after stage changes."""
+    from .forms import AttachmentForm, InteractionForm, ProblemFlagForm, StageAdvanceForm
+
+    stage_history = ep.stage_history.select_related("changed_by")
+    interactions = ep.interactions.select_related("author")
+    attachments = ep.attachments.all()
+
+    # Build allowed stages for the dropdown (next + previous for revert)
+    allowed_stages = []
+    next_stage = _get_next_stage(ep.current_stage)
+    prev_stage = _get_previous_stage(ep.current_stage)
+    if next_stage:
+        allowed_stages.append((next_stage, EP.Stage(next_stage).label))
+    if prev_stage:
+        allowed_stages.append((prev_stage, EP.Stage(prev_stage).label + " (revert)"))
+
+    prereq_status = _get_prereq_status_for_all_stages(ep)
+    prev_history = ep.stage_history.exclude(stage=ep.current_stage).order_by("-changed_at").first()
+    previous_stage = prev_history.stage if prev_history else None
+
+    is_vp = request.current_member.is_vp()
+    is_tl = request.current_member.is_tl()
+
+    ctx = {
+        "ep": ep,
+        "stage_history": stage_history,
+        "interactions": interactions,
+        "attachments": attachments,
+        "advance_form": StageAdvanceForm(),
+        "problem_form": ProblemFlagForm(),
+        "interaction_form": InteractionForm(),
+        "problem_flags": EP.ProblemFlag.choices,
+        "prereq_status": prereq_status,
+        "previous_stage": previous_stage,
+        "allowed_stages": allowed_stages,
+        "is_vp": is_vp,
+        "is_tl": is_tl,
+    }
+    return render(request, "ops/ep_detail_process.html", ctx)
 
 
 def _get_stale_ep_ids(eps_qs):
@@ -191,6 +260,15 @@ def ep_detail(request, pk):
     problem_form = ProblemFlagForm()
     interaction_form = InteractionForm()
 
+    # Build allowed stages (next + previous) for the dropdown
+    allowed_stages = []
+    next_stage = _get_next_stage(ep.current_stage)
+    prev_stage = _get_previous_stage(ep.current_stage)
+    if next_stage:
+        allowed_stages.append((next_stage, EP.Stage(next_stage).label))
+    if prev_stage:
+        allowed_stages.append((prev_stage, EP.Stage(prev_stage).label + " (revert)"))
+
     # Stage prerequisites checklist
     prereq_status = _get_prereq_status_for_all_stages(ep)
     # Previous stage for revert button
@@ -208,6 +286,7 @@ def ep_detail(request, pk):
         "problem_flags": EP.ProblemFlag.choices,
         "prereq_status": prereq_status,
         "previous_stage": previous_stage,
+        "allowed_stages": allowed_stages,
     }
     return render(request, "ops/ep_detail.html", context)
 
@@ -271,39 +350,51 @@ def ep_edit(request, pk):
 
 
 def ep_advance_stage(request, pk):
-    """Advance EP to next stage with prereq validation."""
+    """Advance EP to next stage with prereq validation and order enforcement."""
     ep = get_object_or_404(EP, pk=pk)
+    if not request.current_member.can_view_ep(ep):
+        return render(request, "403.html", status=403)
+
     if request.method == "POST":
         form = StageAdvanceForm(request.POST)
         if form.is_valid():
             target = form.cleaned_data["new_stage"]
 
-            # Check prerequisites
+            # Stage order validation
+            current_idx = STAGE_ORDER_MAP.get(ep.current_stage, -1)
+            target_idx = STAGE_ORDER_MAP.get(target, -1)
+            is_revert = target_idx < current_idx
+
+            # Forward: only allow advancing to the NEXT stage
+            next_stage = _get_next_stage(ep.current_stage)
+            if not is_revert and target != next_stage:
+                from django.contrib import messages
+                label = EP.Stage(next_stage).label if next_stage else "none (already at final stage)"
+                messages.error(request, f"Cannot skip stages. Next stage is: {label}.")
+                return _render_ep_detail_process(request, ep)
+
+            # Prerequisites check
             ok, missing_hard, missing_soft = _check_prerequisites(ep, target)
 
-            if not ok:
+            if not ok and not is_revert:
                 from django.contrib import messages
-                messages.error(
-                    request,
-                    f"❌ Cannot advance: {'; '.join(missing_hard)}. Fix these first."
-                )
-                return redirect("ep_detail", pk=ep.pk)
+                messages.error(request, f"Cannot advance: {"; ".join(missing_hard)}. Fix these first.")
+                return _render_ep_detail_process(request, ep)
 
-            if missing_soft:
+            if missing_soft and not is_revert:
                 from django.contrib import messages
-                messages.warning(
-                    request,
-                    f"⚠️ Advancing without: {'; '.join(missing_soft)}."
-                )
+                messages.warning(request, f"Advancing without: {"; ".join(missing_soft)}.")
 
-            ep.advance_stage(
-                new_stage=target,
-                changed_by=request.current_member,
-                note=form.cleaned_data.get("note", ""),
-            )
-    return redirect("ep_detail", pk=ep.pk)
+            if is_revert:
+                ep.revert_stage(changed_by=request.current_member, note=form.cleaned_data.get("note", ""))
+                from django.contrib import messages
+                messages.info(request, f"Reverted to {EP.Stage(target).label}.")
+            else:
+                ep.advance_stage(new_stage=target, changed_by=request.current_member, note=form.cleaned_data.get("note", ""))
+                from django.contrib import messages
+                messages.success(request, f"Advanced to {EP.Stage(target).label}.")
 
-
+    return _render_ep_detail_process(request, ep)
 def ep_revert_stage(request, pk):
     """Revert EP to the previous stage."""
     ep = get_object_or_404(EP, pk=pk)
@@ -313,10 +404,10 @@ def ep_revert_stage(request, pk):
     if request.method == "POST":
         note = request.POST.get("note", "")
         ep.revert_stage(changed_by=request.current_member, note=note)
+        from django.contrib import messages
+        messages.info(request, f"Reverted to {EP.Stage(ep.current_stage).label}.")
 
-    return redirect("ep_detail", pk=ep.pk)
-
-
+    return _render_ep_detail_process(request, ep)
 def ep_archive(request, pk):
     """Soft-delete / archive an EP."""
     ep = get_object_or_404(EP, pk=pk)

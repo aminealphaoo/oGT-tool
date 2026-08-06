@@ -12,7 +12,11 @@ from ops.models import EP, Interaction, StageHistory
 from partners.models import IR
 
 
-# _parse_date_range is now provided by core.utils.parse_date_range
+STAGE_ORDER = [
+    "open", "matched_with_opp", "applied", "accepted",
+    "approved", "all_papers_done", "not_all_papers_done",
+    "do_papers", "realized",
+]
 
 
 def dashboard(request):
@@ -33,43 +37,38 @@ def dashboard(request):
     else:
         eps_filtered = eps
 
-    # ── Funnel counts per stage (always all-time) ────────────────────
-    stage_order = [
-        "open", "matched_with_opp", "applied", "accepted",
-        "approved", "all_papers_done", "not_all_papers_done",
-        "do_papers", "realized",
-    ]
-    stage_labels = [EP.Stage(s).label for s in stage_order]
+    stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
 
+    # Funnel counts — NOW USING eps_filtered so date filters actually work
     funnel_counts = []
-    for s in stage_order:
-        funnel_counts.append(eps.filter(current_stage=s).count())
+    for s in STAGE_ORDER:
+        funnel_counts.append(eps_filtered.filter(current_stage=s).count())
 
     gt_funnel = []
     gte_funnel = []
-    for s in stage_order:
-        gt_funnel.append(eps.filter(current_stage=s, track="GT").count())
-        gte_funnel.append(eps.filter(current_stage=s, track="GTe").count())
+    for s in STAGE_ORDER:
+        gt_funnel.append(eps_filtered.filter(current_stage=s, track="GT").count())
+        gte_funnel.append(eps_filtered.filter(current_stage=s, track="GTe").count())
 
-    # ── Totals ───────────────────────────────────────────────────────
-    total_eps = eps.count()
+    # ── Totals — use filtered queryset ───────────────────────────────
+    total_eps = eps_filtered.count()
     total_realized = eps_filtered.filter(current_stage="realized").count()
-    total_problems = eps.exclude(problem_flag="none").count()
+    total_problems = eps_filtered.exclude(problem_flag="none").count()
 
-    # Stale computation (all-time, not date-filtered — staleness is about now)
+    # Stale computation — always uses all-time (staleness is about NOW, not a date range)
     stale_ep_ids = set()
     for ep in eps.only("pk", "current_stage", "last_activity_at"):
         if (timezone.now() - ep.last_activity_at).days > config.get_threshold(ep.current_stage):
             stale_ep_ids.add(ep.pk)
     total_stale = len(stale_ep_ids)
 
-    # ── IR stats + EXPA sync ───────────────────────────────────────
+    # ── IR stats ─────────────────────────────────────────────────────
     total_irs = irs.count()
     open_opps = sum(ir.open_opportunities_count for ir in irs)
     last_sync = SyncLog.objects.filter(status="success").order_by("-started_at").first()
 
-    # ── Recent activity ──────────────────────────────────────────────
-    interactions_qs = Interaction.objects.filter(ep__in=eps)
+    # ── Recent activity (date-filtered) ──────────────────────────────
+    interactions_qs = Interaction.objects.filter(ep__in=eps_filtered)
     if date_from:
         interactions_qs = interactions_qs.filter(date__date__gte=date_from)
         if date_to:
@@ -85,7 +84,7 @@ def dashboard(request):
     # ── Date-filtered period stats ───────────────────────────────────
     realized_period = eps_filtered.filter(current_stage="realized").count()
     interactions_period = interactions_qs.count()
-    new_eps_period = eps.filter(created_at__date__gte=date_from).count() if date_from else eps.count()
+    new_eps_period = eps_filtered.filter(created_at__date__gte=date_from).count() if date_from else eps_filtered.count()
 
     context = {
         # Funnel
@@ -114,8 +113,7 @@ def dashboard(request):
         **date_context(date_from, date_to, preset),
     }
 
-    # ── Pipeline forecast ──────────────────────────────────────────
-    # Rate: realized in last 30 days
+    # ── Pipeline forecast (uses all-time eps for forecast calculation) ─
     thirty_days_ago = timezone.now() - timedelta(days=30)
     realized_last_30 = eps.filter(
         current_stage="realized",
@@ -124,19 +122,17 @@ def dashboard(request):
     ).distinct().count()
 
     daily_rate = realized_last_30 / 30 if realized_last_30 > 0 else 0
-    # Days remaining in term (rough: 180 day term)
     term_start = timezone.datetime(2026, 1, 1, tzinfo=timezone.get_current_timezone())
     term_end = term_start + timedelta(days=180)
     remaining_days = max(0, (term_end - timezone.now()).days)
     forecast_realized = round(daily_rate * remaining_days)
 
-    # Current realized + forecast = projected total
     current_realized = eps.filter(current_stage="realized").count()
     projected_total = current_realized + forecast_realized
 
-    # Pipeline value: EPs past "matched_with_opp" but not yet realized
     pipeline_value = eps.filter(
-        current_stage__in=["matched_with_opp", "applied", "accepted", "approved", "all_papers_done", "not_all_papers_done", "do_papers"]
+        current_stage__in=["matched_with_opp", "applied", "accepted", "approved",
+                           "all_papers_done", "not_all_papers_done", "do_papers"]
     ).count()
 
     context["forecast"] = {
@@ -158,11 +154,9 @@ def leaderboard(request):
     eps = member.get_visible_eps()
     date_from, date_to, preset = parse_date_range(request)
 
-    # ── Filters ──────────────────────────────────────────────────
     team_filter = request.GET.get("team", "")
     track_filter = request.GET.get("track", "")
 
-    # ── Visible members ──────────────────────────────────────────
     visible_members = Member.objects.filter(is_active=True).select_related("team")
     if not member.is_vp():
         if member.team:
@@ -174,7 +168,6 @@ def leaderboard(request):
 
     teams = Team.objects.all()
 
-    # ── Date-filtered interactions ───────────────────────────────
     interactions_qs = Interaction.objects.filter(ep__in=eps)
     if date_from:
         interactions_qs = interactions_qs.filter(date__date__gte=date_from)
@@ -189,21 +182,14 @@ def leaderboard(request):
         eps_filtered = eps
 
     now = timezone.now()
-    
-    # Cache key based on filters and current user's scope
     cache_key = f"leaderboard_{member.pk}_{date_from}_{date_to}_{team_filter}_{track_filter}"
     from django.core.cache import cache
     stats = cache.get(cache_key)
 
     if not stats:
         stats = []
-        # Use select_related and prefetch_related for optimizations
         visible_members = visible_members.prefetch_related('assigned_eps', 'author')
-        
-        # We still need to loop for some complex Python logic (streaks, avg_days, stale thresholds)
-        # But we can optimize the DB queries significantly using annotations
-        from django.db.models import Count, Q
-        
+
         annotated_members = visible_members.annotate(
             total_eps=Count('assigned_eps', filter=Q(assigned_eps__in=eps)),
             realized_filtered=Count('assigned_eps', filter=Q(assigned_eps__in=eps_filtered, assigned_eps__current_stage="realized")),
@@ -214,13 +200,12 @@ def leaderboard(request):
             gt_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__track="GT")),
             gte_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__track="GTe")),
         )
-        
+
         for m in annotated_members:
             m_eps = eps.filter(assigned_to=m)
             if track_filter:
                 m_eps = m_eps.filter(track=track_filter)
 
-            # Compute complex stats in memory
             stale = sum(1 for ep in m_eps.only("pk", "current_stage", "last_activity_at")
                         if (now - ep.last_activity_at).days > config.get_threshold(ep.current_stage))
 
@@ -243,9 +228,6 @@ def leaderboard(request):
 
             new_eps = m_eps.filter(created_at__date__gte=date_from).count() if date_from else 0
             streak = _compute_streak(m, eps)
-            
-            # Score formula: (matched * 10) + (realized * 50) + (emails/interactions * 1)
-            # We don't have "matched" easily accessible here yet, so we use realized & interactions
             score = (m.realized_filtered * 50) + m.interactions_total
 
             stats.append({
@@ -257,10 +239,9 @@ def leaderboard(request):
                 "team_name": m.team.name if m.team else "—",
                 "score": score,
             })
-            
-        cache.set(cache_key, stats, 300)  # Cache for 5 minutes
 
-    # ── Sort ──────────────────────────────────────────────────────
+        cache.set(cache_key, stats, 300)
+
     sort_by = request.GET.get("sort", "realized")
     sort_order = request.GET.get("order", "desc")
     reverse = sort_order == "desc"
@@ -269,14 +250,12 @@ def leaderboard(request):
     key = key_map.get(sort_by, "realized")
     stats.sort(key=lambda x: (x[key] is None, x[key] if x[key] is not None else 0), reverse=reverse)
 
-    # ── Top performers ────────────────────────────────────────────
     top_realized = [s for s in stats if s["realized"] > 0][:3]
     top_engagement = sorted([s for s in stats if s["interactions_count"] > 0],
-                           key=lambda x: x["interactions_count"], reverse=True)[:3]
+                            key=lambda x: x["interactions_count"], reverse=True)[:3]
     top_streak = sorted([s for s in stats if s["streak"] > 0],
-                       key=lambda x: x["streak"], reverse=True)[:3]
+                        key=lambda x: x["streak"], reverse=True)[:3]
 
-    # ── Badges ────────────────────────────────────────────────────
     for s in stats:
         badges = []
         if s["realized_alltime"] >= 10:
@@ -295,7 +274,6 @@ def leaderboard(request):
             badges.append({"icon": "star", "label": "Rising Star", "emoji": "⭐", "color": "pink"})
         s["badges"] = badges
 
-    # ── Chart data ────────────────────────────────────────────────
     chart_n = min(10, len(stats))
     chart_members = [s["member"].name for s in stats[:chart_n]]
     chart_realized = [s["realized"] for s in stats[:chart_n]]
@@ -370,8 +348,8 @@ def leaderboard_export_csv(request):
         realized = m_eps.filter(current_stage="realized").count()
         interactions = Interaction.objects.filter(author=m, ep__in=eps).count()
         writer.writerow([i, m.name, m.get_role_display(), m.team.name if m.team else "",
-                        realized, m_eps.count(), m_eps.exclude(current_stage="realized").count(),
-                        interactions, "", "", "", ""])
+                         realized, m_eps.count(), m_eps.exclude(current_stage="realized").count(),
+                         interactions, "", "", "", ""])
     return response
 
 
@@ -381,7 +359,6 @@ def workload(request):
     config = SiteConfig.get()
     eps = member.get_visible_eps()
 
-    # ── Visible members ──────────────────────────────────────────
     visible_members = Member.objects.filter(is_active=True).select_related("team")
     if not member.is_vp():
         if member.team:
@@ -393,8 +370,7 @@ def workload(request):
 
     now = timezone.now()
     members_data = []
-    all_stages = ["open", "matched_with_opp", "applied", "accepted", "approved",
-                  "all_papers_done", "not_all_papers_done", "do_papers", "realized"]
+    all_stages = list(STAGE_ORDER)
 
     for m in visible_members:
         m_eps = eps.filter(assigned_to=m)
@@ -413,7 +389,6 @@ def workload(request):
 
     members_data.sort(key=lambda x: x["total"], reverse=True)
 
-    # Chart data
     chart_members = [d["member"].name for d in members_data[:10]]
     chart_totals = [d["total"] for d in members_data[:10]]
 
@@ -434,7 +409,6 @@ def compare(request):
     config = SiteConfig.get()
     eps = member.get_visible_eps()
 
-    # Terms to compare
     terms = []
     for year in [2025, 2026]:
         for half in [("H1", 1, 6), ("H2", 7, 12)]:
@@ -454,13 +428,8 @@ def compare(request):
         if not term:
             return None
         t_eps = eps.filter(last_activity_at__gte=term["start"], last_activity_at__lte=term["end"])
-        stage_order = [
-            "open", "matched_with_opp", "applied", "accepted",
-            "approved", "all_papers_done", "not_all_papers_done",
-            "do_papers", "realized",
-        ]
         funnel = []
-        for s in stage_order:
+        for s in STAGE_ORDER:
             funnel.append(t_eps.filter(current_stage=s).count())
         total = t_eps.count()
         realized = t_eps.filter(current_stage="realized").count()
@@ -475,11 +444,7 @@ def compare(request):
     stats_a = term_stats(term_a)
     stats_b = term_stats(term_b)
 
-    stage_labels = [EP.Stage(s).label for s in [
-        "open", "matched_with_opp", "applied", "accepted",
-        "approved", "all_papers_done", "not_all_papers_done",
-        "do_papers", "realized",
-    ]]
+    stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
 
     context = {
         "terms": terms,
@@ -507,7 +472,6 @@ def trigger_expa_sync(request):
             sync_expa_eps.delay()
             messages.success(request, "EXPA sync task dispatched to background worker.")
         except Exception:
-            # Celery/Redis unavailable — run standalone sync in subprocess
             import subprocess, sys
             proc = subprocess.Popen(
                 [sys.executable, "sync_expa_standalone.py"],
@@ -524,7 +488,7 @@ def trigger_expa_sync(request):
     sync_logs = SyncLog.objects.all()[:15]
     from automation.models import EmailTemplate
     email_templates = EmailTemplate.objects.all()
-    
+
     context = {
         "expa_token_configured": bool(config.expa_access_token),
         "expa_token": config.expa_access_token or "5zPLES-3w6pq82iPrXgo...",
