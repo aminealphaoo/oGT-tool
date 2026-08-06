@@ -39,24 +39,63 @@ def dashboard(request):
     stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
 
     if date_from:
-        # ── Date-filtered mode: cohort of EPs CREATED in the period ──
-        # Funnel shows current_stage snapshot of EPs that were created within the date range.
-        # This is standard cohort analytics: "Of the EPs created this week, where are they now?"
-        eps_filtered = eps.filter(created_at__date__gte=date_from)
-        if date_to:
-            eps_filtered = eps_filtered.filter(created_at__date__lte=date_to)
+        # ── Date-filtered mode: hybrid approach ──
+        # 1. Count StageHistory events in the period (EPs that changed stage)
+        # 2. Fallback: EPs created in period without StageHistory yet → count their current stage
+        # Combined: accurate view of what happened in this date range.
+        
+        # StageHistory-based funnel: EPs that entered each stage in the period
+        funnel_sh = []
+        for s in STAGE_ORDER:
+            sh_qs = StageHistory.objects.filter(
+                ep__in=eps, stage=s,
+                changed_at__date__gte=date_from,
+            )
+            if date_to:
+                sh_qs = sh_qs.filter(changed_at__date__lte=date_to)
+            funnel_sh.append(set(sh_qs.values_list("ep_id", flat=True).distinct()))
 
-        funnel_counts = [eps_filtered.filter(current_stage=s).count() for s in STAGE_ORDER]
-        gt_funnel = [eps_filtered.filter(current_stage=s, track="GT").count() for s in STAGE_ORDER]
-        gte_funnel = [eps_filtered.filter(current_stage=s, track="GTe").count() for s in STAGE_ORDER]
+        # EPs that had ANY StageHistory event in the period
+        active_sh = StageHistory.objects.filter(
+            ep__in=eps, changed_at__date__gte=date_from,
+        )
+        if date_to:
+            active_sh = active_sh.filter(changed_at__date__lte=date_to)
+        active_ep_ids = set(active_sh.values_list("ep_id", flat=True).distinct())
+
+        # EPs created in period that have NO StageHistory (fresh, untouched)
+        new_no_sh = eps.filter(
+            created_at__date__gte=date_from,
+        ).exclude(pk__in=StageHistory.objects.values_list("ep_id", flat=True).distinct())
+        if date_to:
+            new_no_sh = new_no_sh.filter(created_at__date__lte=date_to)
+        
+        # Merge: StageHistory + created-in-period without history
+        new_no_sh_ids = set(new_no_sh.values_list("pk", flat=True))
+        all_active_ids = active_ep_ids | new_no_sh_ids
+        eps_filtered = eps.filter(pk__in=all_active_ids)
+
+        # Funnel: combine StageHistory counts + snapshot of new EPs without history
+        funnel_counts = []
+        gt_funnel = []
+        gte_funnel = []
+        for i, s in enumerate(STAGE_ORDER):
+            sh_count = len(funnel_sh[i])
+            # Also count new EPs whose current_stage is this stage and have no history
+            snapshot_count = new_no_sh.filter(current_stage=s).count()
+            funnel_counts.append(sh_count + snapshot_count)
+            gt_funnel.append(
+                len([eid for eid in funnel_sh[i] if eid in set(eps.filter(track="GT").values_list("pk", flat=True))]) +
+                new_no_sh.filter(current_stage=s, track="GT").count()
+            )
+            gte_funnel.append(
+                len([eid for eid in funnel_sh[i] if eid in set(eps.filter(track="GTe").values_list("pk", flat=True))]) +
+                new_no_sh.filter(current_stage=s, track="GTe").count()
+            )
+
         total_eps = eps_filtered.count()
-        total_realized = eps_filtered.filter(current_stage="realized").count()
+        total_realized = funnel_counts[STAGE_ORDER.index("realized")]
         total_problems = eps_filtered.exclude(problem_flag="none").count()
-
-        # EPs that had ANY activity in the period (for realized count and interactions)
-        eps_active = eps.filter(last_activity_at__date__gte=date_from)
-        if date_to:
-            eps_active = eps_active.filter(last_activity_at__date__lte=date_to)
 
         # EXPA status breakdowns (snapshot of filtered EPs)
         try:
