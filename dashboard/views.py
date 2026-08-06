@@ -39,17 +39,12 @@ def dashboard(request):
     stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
 
     if date_from:
-        # ── Date-filtered mode: snapshot of EPs that were created or active in the period ──
-        # Filter: EPs created during the period OR EPs that had activity during the period
-        eps_filtered = eps.filter(
-            Q(created_at__date__gte=date_from) |
-            Q(last_activity_at__date__gte=date_from)
-        )
+        # ── Date-filtered mode: cohort of EPs CREATED in the period ──
+        # Funnel shows current_stage snapshot of EPs that were created within the date range.
+        # This is standard cohort analytics: "Of the EPs created this week, where are they now?"
+        eps_filtered = eps.filter(created_at__date__gte=date_from)
         if date_to:
-            eps_filtered = eps_filtered.filter(
-                Q(created_at__date__lte=date_to) |
-                Q(last_activity_at__date__lte=date_to)
-            )
+            eps_filtered = eps_filtered.filter(created_at__date__lte=date_to)
 
         funnel_counts = [eps_filtered.filter(current_stage=s).count() for s in STAGE_ORDER]
         gt_funnel = [eps_filtered.filter(current_stage=s, track="GT").count() for s in STAGE_ORDER]
@@ -57,6 +52,11 @@ def dashboard(request):
         total_eps = eps_filtered.count()
         total_realized = eps_filtered.filter(current_stage="realized").count()
         total_problems = eps_filtered.exclude(problem_flag="none").count()
+
+        # EPs that had ANY activity in the period (for realized count and interactions)
+        eps_active = eps.filter(last_activity_at__date__gte=date_from)
+        if date_to:
+            eps_active = eps_active.filter(last_activity_at__date__lte=date_to)
 
         # EXPA status breakdowns (snapshot of filtered EPs)
         try:
@@ -104,7 +104,8 @@ def dashboard(request):
     last_sync = SyncLog.objects.filter(status="success").order_by("-started_at").first()
 
     # Recent activity
-    interactions_qs = Interaction.objects.filter(ep__in=(eps_filtered if date_from else eps))
+    # Interactions: always filter by date range
+    interactions_qs = Interaction.objects.filter(ep__in=eps)
     if date_from:
         interactions_qs = interactions_qs.filter(date__date__gte=date_from)
         if date_to:
@@ -113,13 +114,16 @@ def dashboard(request):
     recent_interactions = interactions_qs.select_related("ep", "author").order_by("-date")[:10]
 
     if date_from:
-        recent_eps = eps_filtered.order_by("-last_activity_at")[:5]
+        recent_eps = eps_filtered.order_by("-created_at")[:5]
     else:
         recent_eps = eps.order_by("-last_activity_at")[:5]
 
-    realized_period = total_realized
+    if date_from:
+        realized_period = eps_active.filter(current_stage="realized").count()
+    else:
+        realized_period = total_realized
     interactions_period = interactions_qs.count()
-    new_eps_period = eps.filter(created_at__date__gte=date_from).count() if date_from else eps.count()
+    new_eps_period = eps_filtered.count() if date_from else eps.count()
 
     context = {
         "stage_labels": stage_labels,
@@ -149,9 +153,8 @@ def dashboard(request):
     thirty_days_ago = timezone.now() - timedelta(days=30)
     realized_last_30 = eps.filter(
         current_stage="realized",
-        stage_history__changed_at__gte=thirty_days_ago,
-        stage_history__stage="realized",
-    ).distinct().count()
+        last_activity_at__gte=thirty_days_ago,
+    ).count()
 
     daily_rate = realized_last_30 / 30 if realized_last_30 > 0 else 0
     term_start = timezone.datetime(2026, 1, 1, tzinfo=timezone.get_current_timezone())
@@ -199,7 +202,8 @@ def leaderboard(request):
 
     teams = Team.objects.all()
 
-    interactions_qs = Interaction.objects.filter(ep__in=(eps_filtered if date_from else eps))
+    # Interactions: always filter by date range
+    interactions_qs = Interaction.objects.filter(ep__in=eps)
     if date_from:
         interactions_qs = interactions_qs.filter(date__date__gte=date_from)
         if date_to:
