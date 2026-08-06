@@ -20,92 +20,181 @@ STAGE_ORDER = [
 
 
 def dashboard(request):
-    """Role-scoped dashboard with funnel stats, problem counts, stale counts, date filter."""
+    """
+    Role-scoped dashboard with funnel stats, problem counts, stale counts.
+
+    Date filter behaviour:
+    - When a date range is selected, the funnel shows the number of EPs that
+      *entered* each stage during that period (via StageHistory.changed_at),
+      plus EPs that were already in that stage at period start and never moved.
+    - Without a date range, it shows the current snapshot (EP.current_stage).
+    """
     member = request.current_member
     config = SiteConfig.get()
     date_from, date_to, preset = parse_date_range(request)
 
-    # ── Scoped EP queryset ───────────────────────────────────────────
     eps = member.get_visible_eps()
     irs = member.get_visible_irs()
 
-    # ── Date-filtered EP subset ──────────────────────────────────────
-    if date_from:
-        eps_filtered = eps.filter(last_activity_at__date__gte=date_from)
-        if date_to:
-            eps_filtered = eps_filtered.filter(last_activity_at__date__lte=date_to)
-    else:
-        eps_filtered = eps
-
     stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
 
-    # Funnel counts — NOW USING eps_filtered so date filters actually work
-    funnel_counts = []
-    for s in STAGE_ORDER:
-        funnel_counts.append(eps_filtered.filter(current_stage=s).count())
+    if date_from:
+        # ── Date-filtered mode: count EPs by stage within the period ──
+        # For each stage, count distinct EPs whose StageHistory shows they
+        # entered that stage during the period.
+        funnel_counts = []
+        gt_funnel = []
+        gte_funnel = []
 
-    gt_funnel = []
-    gte_funnel = []
-    for s in STAGE_ORDER:
-        gt_funnel.append(eps_filtered.filter(current_stage=s, track="GT").count())
-        gte_funnel.append(eps_filtered.filter(current_stage=s, track="GTe").count())
+        for s in STAGE_ORDER:
+            sh_qs = StageHistory.objects.filter(
+                ep__in=eps,
+                stage=s,
+                changed_at__date__gte=date_from,
+            )
+            if date_to:
+                sh_qs = sh_qs.filter(changed_at__date__lte=date_to)
+            funnel_counts.append(sh_qs.values("ep").distinct().count())
 
-    # ── Totals — use filtered queryset ───────────────────────────────
-    total_eps = eps_filtered.count()
-    total_realized = eps_filtered.filter(current_stage="realized").count()
-    total_problems = eps_filtered.exclude(problem_flag="none").count()
+            # By track
+            gt_funnel.append(
+                sh_qs.filter(ep__track="GT").values("ep").distinct().count()
+            )
+            gte_funnel.append(
+                sh_qs.filter(ep__track="GTe").values("ep").distinct().count()
+            )
 
-    # Stale computation — always uses all-time (staleness is about NOW, not a date range)
+        # EPs that had activity in the period
+        eps_with_activity = StageHistory.objects.filter(
+            ep__in=eps,
+            changed_at__date__gte=date_from,
+        )
+        if date_to:
+            eps_with_activity = eps_with_activity.filter(changed_at__date__lte=date_to)
+        active_ep_ids = set(eps_with_activity.values_list("ep_id", flat=True).distinct())
+        active_eps = eps.filter(pk__in=active_ep_ids)
+
+        total_eps = len(active_ep_ids)
+        total_realized = StageHistory.objects.filter(
+            ep__in=eps, stage="realized",
+            changed_at__date__gte=date_from,
+        )
+        if date_to:
+            total_realized = total_realized.filter(changed_at__date__lte=date_to)
+        total_realized = total_realized.values("ep").distinct().count()
+
+        total_problems = eps.filter(
+            problem_flag__in=["fix_ep_problem", "fix_ir_problem"],
+            last_activity_at__date__gte=date_from,
+        )
+        if date_to:
+            total_problems = total_problems.filter(last_activity_at__date__lte=date_to)
+        total_problems = total_problems.count()
+
+        # EXPA status breakdowns for the period
+        expa_applied = eps.filter(
+            expa_status__in=["applied", "in_progress"],
+            last_activity_at__date__gte=date_from,
+        )
+        expa_accepted = eps.filter(
+            expa_status__in=["accepted_by_host", "accepted"],
+            last_activity_at__date__gte=date_from,
+        )
+        expa_approved = eps.filter(
+            expa_status__in=["approved_by_home", "approved_by_host", "approved"],
+            last_activity_at__date__gte=date_from,
+        )
+        expa_realized = eps.filter(
+            expa_status="realized",
+            last_activity_at__date__gte=date_from,
+        )
+        expa_finished = eps.filter(
+            expa_status__in=["finished", "completed"],
+            last_activity_at__date__gte=date_from,
+        )
+        if date_to:
+            expa_applied = expa_applied.filter(last_activity_at__date__lte=date_to)
+            expa_accepted = expa_accepted.filter(last_activity_at__date__lte=date_to)
+            expa_approved = expa_approved.filter(last_activity_at__date__lte=date_to)
+            expa_realized = expa_realized.filter(last_activity_at__date__lte=date_to)
+            expa_finished = expa_finished.filter(last_activity_at__date__lte=date_to)
+
+        expa_stats = {
+            "applied": expa_applied.count(),
+            "accepted": expa_accepted.count(),
+            "approved": expa_approved.count(),
+            "realized": expa_realized.count(),
+            "finished": expa_finished.count(),
+        }
+
+    else:
+        # ── All-time mode: current snapshot ──
+        funnel_counts = [eps.filter(current_stage=s).count() for s in STAGE_ORDER]
+        gt_funnel = [eps.filter(current_stage=s, track="GT").count() for s in STAGE_ORDER]
+        gte_funnel = [eps.filter(current_stage=s, track="GTe").count() for s in STAGE_ORDER]
+        total_eps = eps.count()
+        total_realized = eps.filter(current_stage="realized").count()
+        total_problems = eps.exclude(problem_flag="none").count()
+
+        # EXPA status breakdowns (current snapshot)
+        expa_stats = {
+            "applied": eps.filter(expa_status__in=["applied", "in_progress"]).count(),
+            "accepted": eps.filter(expa_status__in=["accepted_by_host", "accepted"]).count(),
+            "approved": eps.filter(expa_status__in=["approved_by_home", "approved_by_host", "approved"]).count(),
+            "realized": eps.filter(expa_status="realized").count(),
+            "finished": eps.filter(expa_status__in=["finished", "completed"]).count(),
+        }
+
+    # Stale computation — always uses all-time
     stale_ep_ids = set()
     for ep in eps.only("pk", "current_stage", "last_activity_at"):
         if (timezone.now() - ep.last_activity_at).days > config.get_threshold(ep.current_stage):
             stale_ep_ids.add(ep.pk)
     total_stale = len(stale_ep_ids)
 
-    # ── IR stats ─────────────────────────────────────────────────────
+    # IR stats
     total_irs = irs.count()
     open_opps = sum(ir.open_opportunities_count for ir in irs)
     last_sync = SyncLog.objects.filter(status="success").order_by("-started_at").first()
 
-    # ── Recent activity (date-filtered) ──────────────────────────────
-    interactions_qs = Interaction.objects.filter(ep__in=eps_filtered)
+    # Recent activity
+    interactions_qs = Interaction.objects.filter(ep__in=eps)
     if date_from:
         interactions_qs = interactions_qs.filter(date__date__gte=date_from)
         if date_to:
             interactions_qs = interactions_qs.filter(date__date__lte=date_to)
 
-    recent_interactions = (
-        interactions_qs.select_related("ep", "author")
-        .order_by("-date")[:10]
-    )
+    recent_interactions = interactions_qs.select_related("ep", "author").order_by("-date")[:10]
 
-    recent_eps = eps_filtered.order_by("-last_activity_at")[:5]
+    if date_from:
+        recent_eps_qs = eps.filter(last_activity_at__date__gte=date_from)
+    else:
+        recent_eps_qs = eps
+    if date_to and date_from:
+        recent_eps_qs = recent_eps_qs.filter(last_activity_at__date__lte=date_to)
+    recent_eps = recent_eps_qs.order_by("-last_activity_at")[:5]
 
-    # ── Date-filtered period stats ───────────────────────────────────
-    realized_period = eps_filtered.filter(current_stage="realized").count()
+    realized_period = total_realized
     interactions_period = interactions_qs.count()
-    new_eps_period = eps_filtered.filter(created_at__date__gte=date_from).count() if date_from else eps_filtered.count()
+    new_eps_period = eps.filter(created_at__date__gte=date_from).count() if date_from else eps.count()
 
     context = {
-        # Funnel
         "stage_labels": stage_labels,
         "funnel_counts": funnel_counts,
         "gt_funnel": gt_funnel,
         "gte_funnel": gte_funnel,
-        # Totals
         "total_eps": total_eps,
         "total_realized": total_realized,
         "total_problems": total_problems,
         "total_stale": total_stale,
         "total_irs": total_irs,
         "open_opps": open_opps,
-        # Activity
         "recent_interactions": recent_interactions,
         "recent_eps": recent_eps,
         "realized_period": realized_period,
         "interactions_period": interactions_period,
         "new_eps_period": new_eps_period,
-        # Config
+        "expa_stats": expa_stats,
         "lc_name": config.lc_name,
         "current_term": config.current_term,
         "last_sync": last_sync,
@@ -113,7 +202,7 @@ def dashboard(request):
         **date_context(date_from, date_to, preset),
     }
 
-    # ── Pipeline forecast (uses all-time eps for forecast calculation) ─
+    # Pipeline forecast
     thirty_days_ago = timezone.now() - timedelta(days=30)
     realized_last_30 = eps.filter(
         current_stage="realized",
@@ -126,7 +215,6 @@ def dashboard(request):
     term_end = term_start + timedelta(days=180)
     remaining_days = max(0, (term_end - timezone.now()).days)
     forecast_realized = round(daily_rate * remaining_days)
-
     current_realized = eps.filter(current_stage="realized").count()
     projected_total = current_realized + forecast_realized
 

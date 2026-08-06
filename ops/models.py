@@ -44,6 +44,13 @@ class EP(models.Model):
     current_stage = models.CharField(
         max_length=30, choices=Stage.choices, default=Stage.OPEN, db_index=True
     )
+    expa_status = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Raw EXPA status from the API (open, applied, accepted, approved, realized, finished, completed, rejected, etc.)",
+    )
     problem_flag = models.CharField(
         max_length=20, choices=ProblemFlag.choices, default=ProblemFlag.NONE, db_index=True
     )

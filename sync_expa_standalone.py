@@ -16,13 +16,18 @@ from ops.models import EP
 
 def _expa_status_to_stage(expa_status, meta, has_opportunity=False):
     """
-    Map EXPA application status to EP stage.
+    Map EXPA application status to our EP stage.
 
     Priority:
     1. meta.date_realized → realized
     2. meta.date_approved → approved
     3. meta.date_matched OR has_opportunity (application already linked to an opp) → matched_with_opp
-    4. Fallback: map EXPA status text
+    4. Fallback: map EXPA status text (comprehensive list)
+
+    Full EXPA status list:
+    open, applied, accepted_by_host, accepted, approved_by_home, approved_by_host,
+    approved, realized, finished, completed, rejected, withdrawn, declined,
+    approval_broken, realization_broken
     """
     if meta.get("date_realized"):
         return "realized"
@@ -32,14 +37,33 @@ def _expa_status_to_stage(expa_status, meta, has_opportunity=False):
         return "matched_with_opp"
 
     status_map = {
-        "open": "open", "applied": "applied", "in_progress": "applied",
-        "accepted": "accepted", "approved": "approved",
-        "realized": "realized", "finished": "realized", "completed": "realized",
-        "withdrawn": "open", "rejected": "open", "pending": "open",
+        # Open / early stage
+        "open": "open",
+        "applied": "applied",
+        "in_progress": "applied",
+        # Accepted variants → our "accepted"
+        "accepted_by_host": "accepted",
+        "accepted": "accepted",
+        # Approved variants → our "approved"
+        "approved_by_home": "approved",
+        "approved_by_host": "approved",
+        "approved": "approved",
+        # Realized / finished / completed → our "realized"
+        "realized": "realized",
+        "finished": "realized",
+        "completed": "realized",
+        # Negative outcomes → reset to Open
+        "rejected": "open",
+        "withdrawn": "open",
+        "declined": "open",
+        "approval_broken": "open",
+        "realization_broken": "open",
+        # Matched
         "matched": "matched_with_opp",
+        # Unknown
+        "pending": "open",
     }
     return status_map.get(expa_status, "open")
-
 
 def sync_expa():
     config = SiteConfig.get()
@@ -137,8 +161,9 @@ def sync_expa():
                         if existing.source == "expa_sync":
                             existing.track = track
                             existing.current_stage = stage
+                            existing.expa_status = expa_status
                             existing.last_activity_at = timezone.now()
-                            existing.save(update_fields=["track", "current_stage", "last_activity_at"])
+                            existing.save(update_fields=["track", "current_stage", "expa_status", "last_activity_at"])
                             skipped += 1
                         else:
                             skipped += 1
@@ -153,6 +178,7 @@ def sync_expa():
                             phone=phone,
                             track=track,
                             current_stage=stage,
+                            expa_status=expa_status,
                             term=config.current_term,
                             source="expa_sync",
                             university=home_lc_name,

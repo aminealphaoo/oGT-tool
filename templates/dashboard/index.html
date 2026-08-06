@@ -64,6 +64,40 @@
     </div>
 </div>
 
+<!-- EXPA Status Breakdown -->
+<div class="row g-2 mb-3">
+    <div class="col">
+        <div class="card card-stat stat-card-blue py-2 px-3">
+            <div class="stat-number">{{ expa_stats.applied }}</div>
+            <div class="stat-label">EXPA Applied</div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card card-stat stat-card-cyan py-2 px-3">
+            <div class="stat-number">{{ expa_stats.accepted }}</div>
+            <div class="stat-label">EXPA Accepted</div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card card-stat stat-card-purple py-2 px-3">
+            <div class="stat-number">{{ expa_stats.approved }}</div>
+            <div class="stat-label">EXPA Approved</div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card card-stat stat-card-green py-2 px-3">
+            <div class="stat-number">{{ expa_stats.realized }}</div>
+            <div class="stat-label">EXPA Realized</div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card card-stat stat-card-teal py-2 px-3">
+            <div class="stat-number">{{ expa_stats.finished }}</div>
+            <div class="stat-label">EXPA Finished</div>
+        </div>
+    </div>
+</div>
+
 <!-- Forecast row -->
 {% if forecast.pipeline_value %}
 <div class="row g-2 mb-3 small">
