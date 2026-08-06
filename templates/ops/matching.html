@@ -2,156 +2,209 @@
 {% block title %}Matching — AIESEC LC Carthage{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="mb-0"><i class="bi bi-link-45deg me-2" style="color: var(--aiesec-cyan);"></i>Matching Helper</h4>
-        <p class="text-muted small mb-0 mt-1">Match EPs at "Matched with opp" to IRs with open opportunities</p>
+        <h4 class="mb-0 text-primary fw-bold"><i class="bi bi-link-45deg me-2"></i>Intelligent Matching</h4>
+        <p class="text-muted small mb-0 mt-1">Select an EP to see AI-scored opportunity recommendations, or match manually</p>
     </div>
 </div>
 
 <!-- Track selector -->
-<div class="filter-bar">
-    <form method="get" class="d-flex gap-2 align-items-center">
-        <span class="fw-semibold small me-2">Track:</span>
+<div class="filter-bar mb-3">
+    <div class="d-flex gap-2 align-items-center">
+        <span class="fw-semibold small me-2 text-muted">Track:</span>
         {% for val, label in tracks %}
         <a href="?track={{ val }}" class="btn btn-sm {% if current_track == val %}btn-primary{% else %}btn-outline-secondary{% endif %}">
             {{ label }}
         </a>
         {% endfor %}
-    </form>
+    </div>
 </div>
 
 <!-- Stats row -->
-<div class="row g-2 mb-3">
+<div class="row g-2 mb-4">
     <div class="col-auto">
-        <span class="badge bg-warning text-dark fs-6">{{ ep_count }} EP{{ ep_count|pluralize }} waiting</span>
+        <span class="badge bg-warning-subtle text-warning fs-6 border border-warning-subtle px-3 py-2 rounded-3">
+            <i class="bi bi-person-x me-1"></i> {{ ep_count }} EP{{ ep_count|pluralize }} waiting
+        </span>
     </div>
     <div class="col-auto">
-        <span class="badge bg-success fs-6">{{ ir_count }} IR{{ ir_count|pluralize }} with open opps</span>
+        <span class="badge bg-success-subtle text-success fs-6 border border-success-subtle px-3 py-2 rounded-3">
+            <i class="bi bi-building me-1"></i> {{ ir_count }} IR{{ ir_count|pluralize }} with open opps
+        </span>
     </div>
+    {% if focused_ep %}
+    <div class="col-auto">
+        <span class="badge bg-primary fs-6 px-3 py-2 rounded-3">
+            <i class="bi bi-magic me-1"></i> Scoring for: {{ focused_ep.full_name }}
+        </span>
+    </div>
+    {% endif %}
 </div>
 
 <div class="row g-3">
     <!-- Left: EPs waiting for a match -->
     <div class="col-lg-5">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <h6 class="mb-0">
-                    <i class="bi bi-people me-2"></i>
-                    EPs at "Matched with opp"
-                    <span class="badge bg-warning text-dark ms-1">{{ ep_count }}</span>
+        <div class="card h-100 border shadow-sm">
+            <div class="card-header bg-transparent border-bottom py-3">
+                <h6 class="mb-0 fw-bold d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-people me-2 text-warning"></i>Waiting EPs</span>
+                    <span class="badge bg-warning text-dark">{{ ep_count }}</span>
                 </h6>
             </div>
-            <div class="card-body p-0" style="max-height: 65vh; overflow-y: auto;">
+            <div class="card-body p-0" style="max-height: 70vh; overflow-y: auto;">
                 {% for ep in unmatched_eps %}
-                <div class="px-3 py-3 border-bottom">
+                <div class="px-3 py-3 border-bottom hover-bg {% if ep_id == ep.pk|stringformat:'s' %}bg-primary-subtle{% endif %}">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
-                            <a href="{% url 'ep_detail' ep.pk %}" class="fw-semibold text-decoration-none d-block">
+                            <a href="?track={{ current_track }}&ep_id={{ ep.pk }}"
+                               class="fw-semibold text-decoration-none text-body fs-6 d-block">
                                 {{ ep.full_name }}
+                                {% if ep_id == ep.pk|stringformat:"s" %}
+                                <i class="bi bi-magic text-primary ms-1" title="Scoring active"></i>
+                                {% endif %}
                             </a>
                             <div class="small text-muted mt-1">
-                                {{ ep.university|default:"—" }} · {{ ep.major|default:"—" }} · Year {{ ep.year_of_study|default:"?" }}
+                                <i class="bi bi-journal-bookmark me-1"></i>{{ ep.university|default:"—" }} · {{ ep.major|default:"—" }}
                             </div>
                         </div>
-                        {% if ep.is_stale %}
-                        <span class="badge bg-warning text-dark stale-warning">
+                        {% if ep.idle_days > 7 %}
+                        <span class="badge bg-warning text-dark stale-warning" style="font-size: 0.65rem;">
                             <i class="bi bi-clock-history"></i> {{ ep.idle_days }}d
                         </span>
                         {% endif %}
                     </div>
-                    <div class="d-flex gap-1 flex-wrap small">
+
+                    <div class="d-flex gap-1 flex-wrap small mb-2">
                         <span class="badge bg-light text-dark">{{ ep.get_track_display }}</span>
-                        <span class="badge bg-light text-dark">{{ ep.assigned_to.name|default:"Unassigned" }}</span>
+                        <span class="badge bg-light text-dark"><i class="bi bi-person me-1"></i>{{ ep.assigned_to.name|default:"Unassigned" }}</span>
+                        <span class="badge bg-secondary-subtle text-secondary">{{ ep.get_current_stage_display }}</span>
                         {% if ep.matched_opportunity %}
-                        <span class="badge bg-info text-dark">
+                        <span class="badge bg-info-subtle text-info">
                             Current: {{ ep.matched_opportunity.ir.entity_name }}
                         </span>
                         {% endif %}
                     </div>
-                    {% if ep.socials %}
-                    <div class="small text-muted mt-1">
-                        <i class="bi bi-chat-dots me-1"></i>{{ ep.socials|truncatechars:60 }}
-                    </div>
-                    {% endif %}
-                    <!-- Match form -->
+
+                    <!-- Quick match form -->
                     {% if all_open_opps %}
                     <form method="post" action="{% url 'matching_match' %}" class="mt-2 d-flex gap-1">
                         {% csrf_token %}
                         <input type="hidden" name="ep_id" value="{{ ep.pk }}">
-                        <select name="opp_id" class="form-select form-select-sm" style="font-size: .75rem;">
-                            <option value="">Match to opportunity…</option>
+                        <select name="opp_id" class="form-select form-select-sm" style="font-size: .75rem;" required>
+                            <option value="">Choose opportunity…</option>
                             {% for opp in all_open_opps %}
-                            <option value="{{ opp.pk }}">{{ opp.ir.entity_name }} — {{ opp.get_type_display }} {{ opp.title|default:''|truncatechars:30 }}</option>
+                            <option value="{{ opp.pk }}">{{ opp.ir.entity_name }} — {{ opp.get_type_display }} {% if opp.title %}({{ opp.title|truncatechars:20 }}){% endif %}</option>
                             {% endfor %}
                         </select>
-                        <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size: .7rem;">
-                            <i class="bi bi-link-45deg"></i>
+                        <button type="submit" class="btn btn-sm btn-primary" style="font-size: .75rem; white-space: nowrap;">
+                            <i class="bi bi-link-45deg me-1"></i>Match
                         </button>
                     </form>
                     {% endif %}
                 </div>
                 {% empty %}
-                <div class="text-center py-4 text-muted">
-                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-                    <p class="mt-2 mb-0">No EPs waiting for a match in {{ current_track }}.</p>
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-check-circle text-success fs-2 d-block mb-2"></i>
+                    <p class="mb-0">All EPs matched in this track!</p>
                 </div>
                 {% endfor %}
             </div>
         </div>
     </div>
 
-    <!-- Right: IRs with open opportunities -->
+    <!-- Right: Scored Recommendations (if EP focused) or IR list -->
     <div class="col-lg-7">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <h6 class="mb-0">
-                    <i class="bi bi-building me-2"></i>
-                    IRs with Open Opportunities ({{ current_track }})
-                    <span class="badge bg-success ms-1">{{ ir_count }}</span>
+        {% if focused_ep and scored_opps %}
+        <!-- AI Score panel -->
+        <div class="card border-primary shadow-sm mb-3">
+            <div class="card-header bg-primary text-white py-3">
+                <h6 class="mb-0 fw-bold">
+                    <i class="bi bi-magic me-2"></i>Smart Recommendations for {{ focused_ep.full_name }}
+                    <span class="badge bg-white text-primary ms-2">{{ scored_opps|length }} matches</span>
                 </h6>
             </div>
-            <div class="card-body p-0" style="max-height: 65vh; overflow-y: auto;">
+            <div class="card-body p-0" style="max-height: 35vh; overflow-y: auto;">
+                {% for item in scored_opps %}
+                <div class="px-3 py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <div>
+                        <a href="{% url 'ir_detail' item.ir.pk %}" class="fw-semibold text-decoration-none">{{ item.ir.entity_name }}</a>
+                        <span class="badge bg-secondary-subtle text-secondary ms-2">{{ item.ir.country }}</span>
+                        <div class="small text-muted mt-1">
+                            {{ item.opp.get_type_display }}{% if item.opp.title %} · {{ item.opp.title|truncatechars:40 }}{% endif %}
+                        </div>
+                    </div>
+                    <div class="text-end d-flex flex-column align-items-end gap-1">
+                        <span class="badge bg-{% if item.score >= 100 %}success{% elif item.score >= 70 %}primary{% else %}secondary{% endif %} fs-6">
+                            {{ item.score }} pts
+                        </span>
+                        <form method="post" action="{% url 'matching_match' %}" class="d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="ep_id" value="{{ focused_ep.pk }}">
+                            <input type="hidden" name="opp_id" value="{{ item.opp.pk }}">
+                            <button type="submit" class="btn btn-sm btn-outline-primary" style="font-size:.7rem;">
+                                <i class="bi bi-link-45deg"></i> Match
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- IR overview panel -->
+        <div class="card border shadow-sm">
+            <div class="card-header bg-transparent border-bottom py-3">
+                <h6 class="mb-0 fw-bold d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-building me-2 text-success"></i>Active IR Partners & Open Opportunities</span>
+                    <span class="badge bg-success">{{ ir_count }} IRs</span>
+                </h6>
+            </div>
+            <div class="card-body p-0" style="max-height: {% if focused_ep and scored_opps %}30{% else %}65{% endif %}vh; overflow-y: auto;">
                 {% for item in ir_data %}
                 <div class="border-bottom">
-                    <div class="px-3 py-2 bg-light d-flex justify-content-between align-items-center">
+                    <div class="px-3 py-3 bg-light-subtle d-flex justify-content-between align-items-center border-bottom">
                         <div>
-                            <a href="{% url 'ir_detail' item.ir.pk %}" class="fw-semibold text-decoration-none">
+                            <a href="{% url 'ir_detail' item.ir.pk %}" class="fw-bold text-decoration-none text-body">
                                 {{ item.ir.entity_name }}
                             </a>
-                            <span class="text-muted ms-1 small">{{ item.ir.country }}</span>
+                            <span class="badge bg-secondary-subtle text-secondary ms-2"><i class="bi bi-geo-alt"></i> {{ item.ir.country }}</span>
+                            {% if item.ir.status == "priority" %}
+                            <span class="badge bg-warning text-dark ms-1">⭐ Priority</span>
+                            {% endif %}
+                            <span class="badge bg-light text-dark border ms-1">{{ item.ir.get_tier_display }}</span>
                         </div>
                         <div class="d-flex gap-2 small">
-                            <span class="text-success fw-semibold">{{ item.ir.realized_count }} realized</span>
-                            <span class="text-muted">{{ item.ir.rejection_rate }}% rejection</span>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle">{{ item.ir.realized_count }} realized</span>
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ item.ir.rejection_rate }}% reject</span>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ item.opp_count }} slots</span>
                         </div>
                     </div>
-                    {% for opp in item.open_opps %}
-                    <div class="px-3 py-2 d-flex justify-content-between align-items-center">
-                        <div>
-                            <span class="badge bg-light text-dark me-1">{{ opp.get_type_display }}</span>
-                            <span class="small">{{ opp.title|default:"Untitled" }}</span>
-                            {% if opp.description %}
-                            <p class="mb-0 mt-1 text-muted" style="font-size: .75rem;">{{ opp.description|truncatechars:100 }}</p>
-                            {% endif %}
+                    <div class="p-2 bg-body">
+                        {% for opp in item.open_opps %}
+                        <div class="px-3 py-2 my-1 border rounded d-flex justify-content-between align-items-center bg-white shadow-xs">
+                            <div>
+                                <span class="badge bg-primary-subtle text-primary me-2">{{ opp.get_type_display }}</span>
+                                <span class="fw-semibold text-body-secondary small">{{ opp.title|default:"Opportunity" }}</span>
+                                {% if opp.description %}
+                                <p class="mb-0 mt-1 text-muted small" style="font-size: .75rem;">{{ opp.description|truncatechars:100 }}</p>
+                                {% endif %}
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-success rounded-pill px-2" style="font-size: 0.6rem;">Open</span>
+                                {% if opp.expires_at %}
+                                <div class="text-muted mt-1" style="font-size: .65rem;">Exp: {{ opp.expires_at|date:"M d" }}</div>
+                                {% endif %}
+                            </div>
                         </div>
-                        <div>
-                            {% if opp.is_open %}
-                            <span class="badge bg-success">Open</span>
-                            {% endif %}
-                            {% if opp.expires_at %}
-                            <span class="text-muted ms-1" style="font-size: .7rem;">
-                                until {{ opp.expires_at|date:"M d" }}
-                            </span>
-                            {% endif %}
-                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 </div>
                 {% empty %}
-                <div class="text-center py-4 text-muted">
-                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-                    <p class="mt-2 mb-0">No IRs with open opportunities in {{ current_track }}.</p>
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-building fs-2 d-block mb-2"></i>
+                    <p class="mb-0">No active IR opportunities found.</p>
                 </div>
                 {% endfor %}
             </div>
@@ -159,11 +212,10 @@
     </div>
 </div>
 
-<!-- Quick tip -->
-<div class="text-center mt-3">
+<div class="text-center mt-4">
     <p class="text-muted small mb-0">
-        <i class="bi bi-lightbulb me-1"></i>
-        Tip: Use the dropdown on each EP card to match them to an open opportunity instantly.
+        <i class="bi bi-magic text-primary me-1"></i>
+        Click an EP on the left to get AI-scored opportunity recommendations.
     </p>
 </div>
 {% endblock %}

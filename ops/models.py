@@ -31,7 +31,7 @@ class EP(models.Model):
     # ── Personal info ─────────────────────────────────────────────────
     full_name = models.CharField(max_length=200)
     phone = models.CharField(max_length=50, blank=True, default="")
-    email = models.EmailField(blank=True, default="")
+    email = models.EmailField(blank=True, default="", db_index=True)
     socials = models.TextField(blank=True, default="", help_text="WhatsApp, Messenger, etc.")
 
     # ── Academic ──────────────────────────────────────────────────────
@@ -71,6 +71,7 @@ class EP(models.Model):
         max_length=20,
         choices=[("manual", "Manual"), ("expa_sync", "EXPA Sync")],
         default="manual",
+        db_index=True,
     )
     last_activity_at = models.DateTimeField(default=timezone.now, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -161,6 +162,8 @@ class EP(models.Model):
             "do_papers": 6,
             "realized": 7,
         }
+        return order_map.get(self.current_stage, 99)
+
     def revert_stage(self, changed_by: Member, note: str = ""):
         """Revert to the previous stage — logs the reversal."""
         previous = (

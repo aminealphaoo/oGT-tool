@@ -101,6 +101,7 @@ def ep_list(request):
     assigned = request.GET.get("assigned", "")
     problem = request.GET.get("problem", "")
     search = request.GET.get("q", "")
+    source = request.GET.get("source", "")
 
     if track:
         eps = eps.filter(track=track)
@@ -110,6 +111,8 @@ def ep_list(request):
         eps = eps.filter(assigned_to_id=assigned)
     if problem:
         eps = eps.filter(problem_flag=problem)
+    if source:
+        eps = eps.filter(source=source)
     if search:
         eps = eps.filter(
             dj_models.Q(full_name__icontains=search)
@@ -117,13 +120,27 @@ def ep_list(request):
             | dj_models.Q(university__icontains=search)
         )
 
-    # Paginate
-    page_obj, per_page = _paginate(request, eps)
+    is_kanban = request.GET.get("view", "") == "kanban"
 
     # Stale badge — precompute for ALL visible EPs (not just current page)
     all_eps_for_stale = member.get_visible_eps()
     stale_ep_ids = _get_stale_ep_ids(all_eps_for_stale)
     stale_count = len(stale_ep_ids)
+
+    stages_data = None
+    if is_kanban:
+        stages_data = []
+        for s in EP.Stage.choices:
+            stages_data.append({
+                "val": s[0],
+                "label": s[1],
+                "eps": [ep for ep in eps if ep.current_stage == s[0]]
+            })
+        page_obj = None
+        per_page = None
+    else:
+        # Paginate
+        page_obj, per_page = _paginate(request, eps)
 
     from members.models import Member
 
@@ -132,7 +149,7 @@ def ep_list(request):
         "page_obj": page_obj,
         "per_page": per_page,
         "stale_ep_ids": stale_ep_ids,
-        "total_count": page_obj.paginator.count,
+        "total_count": eps.count(),
         "tracks": EP.Track.choices,
         "stages": EP.Stage.choices,
         "problem_flags": EP.ProblemFlag.choices,
@@ -141,11 +158,18 @@ def ep_list(request):
         "current_stage": stage,
         "current_assigned": assigned,
         "current_problem": problem,
+        "current_source": source,
         "search": search,
         "stale_count": stale_count,
         "show_archived": show_archived,
         "saved_filters": SavedFilter.objects.filter(member=member).order_by("-created_at")[:8],
+        "is_kanban": is_kanban,
+        "stages_data": stages_data,
     }
+    
+    if request.headers.get("HX-Request") and not is_kanban:
+        return render(request, "ops/partials/ep_table.html", context)
+        
     return render(request, "ops/ep_list.html", context)
 
 
@@ -596,17 +620,55 @@ def problem_list(request):
     return render(request, "ops/problems.html", context)
 
 
-# ── Matching Helper ────────────────────────────────────────────────────
+def _score_ep_opp_match(ep, opp):
+    """
+    Score an EP-opportunity match. Higher = better fit.
+
+    Factors:
+    - Track match: +50 (must match, otherwise 0 total)
+    - IR Tier:     Platinum=40, Gold=30, Silver=20, Bronze=10
+    - Open slots:  +20 if opp.ir has > 1 open opp (capacity), else +5
+    - Rejection:   -1 per % rejection rate of the IR
+    - Response:    +10 if response_time_days < 7, +5 if < 14, else 0
+    """
+    if opp.track != ep.track:
+        return 0
+
+    score = 50  # Base track match
+
+    # IR Tier bonus
+    tier_scores = {"platinum": 40, "gold": 30, "silver": 20, "bronze": 10}
+    score += tier_scores.get(opp.ir.tier, 10)
+
+    # Slot / capacity bonus
+    open_count = opp.ir.open_opportunities_count
+    score += 20 if open_count > 1 else 5
+
+    # Penalize high rejection rate
+    score -= int(opp.ir.rejection_rate)
+
+    # Response time bonus
+    rt = opp.ir.response_time_days
+    if rt is not None:
+        if rt < 7:
+            score += 10
+        elif rt < 14:
+            score += 5
+
+    return max(score, 0)
+
 
 def matching(request):
-    """Side-by-side: EPs at 'matched_with_opp' vs IRs with open opportunities."""
+    """Intelligent matching: EPs waiting for a match, scored against open IR opportunities."""
     member = request.current_member
 
     track = request.GET.get("track", "GT")
+    ep_id = request.GET.get("ep_id", "")  # Optional: focus on a specific EP
 
-    # EPs that are matched but not yet applied
+    # EPs that need matching (open stage without an opportunity, or at matched_with_opp)
+    matchable_stages = ["open", "matched_with_opp"]
     unmatched_eps = member.get_visible_eps().filter(
-        current_stage="matched_with_opp",
+        current_stage__in=matchable_stages,
         track=track,
     ).select_related("assigned_to", "matched_opportunity__ir")
 
@@ -614,18 +676,41 @@ def matching(request):
     irs_with_open = IR.objects.filter(
         opportunities__is_open=True,
         opportunities__track=track,
+        status__in=["active", "priority"],
     ).prefetch_related("opportunities").distinct()
 
-    # For each IR, list only open opps of matching track
-    ir_data = []
+    # Build all open opps
     all_open_opps = []
     for ir in irs_with_open:
-        open_opps = ir.opportunities.filter(is_open=True, track=track)
+        for opp in ir.opportunities.filter(is_open=True, track=track):
+            all_open_opps.append(opp)
+
+    # If an EP is focused, compute scored suggestions for it
+    focused_ep = None
+    scored_opps = []
+    if ep_id:
+        try:
+            focused_ep = unmatched_eps.get(pk=ep_id)
+            for opp in all_open_opps:
+                s = _score_ep_opp_match(focused_ep, opp)
+                if s > 0:
+                    scored_opps.append({"opp": opp, "score": s, "ir": opp.ir})
+            scored_opps.sort(key=lambda x: x["score"], reverse=True)
+        except EP.DoesNotExist:
+            pass
+
+    # Build IR data summary for left panel
+    ir_data = []
+    for ir in irs_with_open:
+        open_opps = list(ir.opportunities.filter(is_open=True, track=track))
         ir_data.append({
             "ir": ir,
             "open_opps": open_opps,
+            "opp_count": len(open_opps),
         })
-        all_open_opps.extend(open_opps)
+    # Sort IRs: priority first, then by tier
+    tier_order = {"platinum": 0, "gold": 1, "silver": 2, "bronze": 3}
+    ir_data.sort(key=lambda x: (x["ir"].status != "priority", tier_order.get(x["ir"].tier, 9)))
 
     context = {
         "unmatched_eps": unmatched_eps,
@@ -635,6 +720,9 @@ def matching(request):
         "current_track": track,
         "ep_count": unmatched_eps.count(),
         "ir_count": len(ir_data),
+        "focused_ep": focused_ep,
+        "scored_opps": scored_opps,
+        "ep_id": ep_id,
     }
     return render(request, "ops/matching.html", context)
 

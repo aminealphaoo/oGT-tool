@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.humanize",
     # Local apps
     "core",
     "members",
@@ -50,9 +51,14 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # Custom identity middleware (session-based, no auth)
-    "members.middleware.IdentityMiddleware",
+    # Custom member middleware (links auth.User to Member profile)
+    "members.middleware.CurrentMemberMiddleware",
+    "members.middleware.RequireLoginMiddleware",
 ]
+
+LOGIN_URL = "/members/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/members/login/"
 
 ROOT_URLCONF = "aiesec_tool.urls"
 
@@ -79,7 +85,12 @@ WSGI_APPLICATION = "aiesec_tool.wsgi.application"
 # PostgreSQL from day one (falls back to SQLite for local dev without DATABASE_URL)
 DATABASE_URL = config("DATABASE_URL", default="")
 if DATABASE_URL:
-    DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+    DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=0)}
+    DATABASES["default"]["OPTIONS"] = {
+            "sslmode": "require",
+            "connect_timeout": 10,
+    }
+    CONN_HEALTH_CHECKS = True
 else:
     DATABASES = {
         "default": {
@@ -124,6 +135,13 @@ CELERY_TIMEZONE = "Africa/Tunis"
 CELERY_TASK_TRACK_STARTED = True
 # SSL for Upstash (rediss:// handled automatically by Celery)
 CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": "CERT_NONE"}
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": CELERY_BROKER_URL,
+    }
+}
 
 # ── File uploads ──────────────────────────────────────────────────────
 MEDIA_URL = "/media/"

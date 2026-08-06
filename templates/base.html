@@ -8,179 +8,320 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --aiesec-blue: #037EF3;
             --aiesec-dark: #0A1426;
+            --aiesec-light: #F8FAFC;
             --aiesec-cyan: #00C1D5;
             --aiesec-orange: #F85A40;
             --aiesec-green: #30C39E;
             --aiesec-yellow: #FFC845;
+            --sidebar-width: 260px;
+            --glass-bg: rgba(255, 255, 255, 0.85);
+            --glass-border: rgba(241, 245, 249, 0.8);
+            --glass-shadow: rgba(148, 163, 184, 0.06);
+            --card-bg: #ffffff;
         }
-        body { background: #f5f7fa; font-family: system-ui, -apple-system, sans-serif; }
-        .navbar-brand { font-weight: 700; color: var(--aiesec-blue) !important; }
-        .nav-link.active { font-weight: 600; color: var(--aiesec-blue) !important; }
 
-        .card-stat { border-left: 4px solid var(--aiesec-blue); transition: transform .15s; }
-        .card-stat:hover { transform: translateY(-1px); }
-        .card-stat .stat-number { font-size: 2rem; font-weight: 700; line-height: 1.1; }
-        .card-stat .stat-label { font-size: .85rem; color: #6c757d; text-transform: uppercase; letter-spacing: .5px; }
+        [data-bs-theme="dark"] {
+            --aiesec-blue: #3b9cff;
+            --aiesec-dark: #0e1726;
+            --aiesec-light: #0b0f19;
+            --aiesec-cyan: #22d3ee;
+            --aiesec-orange: #fb7185;
+            --aiesec-green: #34d399;
+            --aiesec-yellow: #fbbf24;
+            --glass-bg: rgba(15, 23, 42, 0.9);
+            --glass-border: rgba(255, 255, 255, 0.05);
+            --glass-shadow: rgba(0, 0, 0, 0.2);
+            --card-bg: #141c2f;
+        }
 
-        .stage-badge { font-size: .75rem; padding: .25em .65em; border-radius: 20px; font-weight: 500; }
-        .stage-open { background: #e9ecef; color: #495057; }
-        .stage-matched { background: #fff3cd; color: #856404; }
-        .stage-applied { background: #cff4fc; color: #055160; }
-        .stage-accepted { background: #d1e7dd; color: #0a3622; }
-        .stage-approved { background: #cfe2ff; color: #052c65; }
-        .stage-papers { background: #e8daef; color: #4a235a; }
-        .stage-realized { background: #d1f2eb; color: #0a5c44; }
+        body {
+            background-color: var(--aiesec-light);
+            font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+            transition: background-color 0.25s ease;
+        }
 
-        .problem-active { background: #f8d7da; color: #842029; }
-        .problem-fixed { background: #d1e7dd; color: #0a3622; }
+        #appLayout {
+            display: flex;
+            min-height: 100vh;
+        }
 
-        .stale-warning { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.6; } }
+        /* Sidebar Styling */
+        #sidebar {
+            width: var(--sidebar-width);
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border-right: 1px solid var(--glass-border);
+            box-shadow: 6px 0 24px 0 var(--glass-shadow);
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 1000;
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem 1rem;
+        }
 
-        .filter-bar { background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+        #mainContent {
+            margin-left: var(--sidebar-width);
+            flex-grow: 1;
+            padding: 2rem;
+            transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            min-width: 0;
+        }
 
-        .timeline-item { padding: .75rem 1rem; border-left: 3px solid var(--aiesec-cyan); margin-bottom: .5rem; background: #f8f9fa; border-radius: 0 6px 6px 0; }
-        .timeline-item .ts { font-size: .75rem; color: #6c757d; }
+        /* Sidebar Nav Links */
+        .sidebar-brand {
+            font-weight: 700;
+            color: var(--aiesec-blue) !important;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            padding: 0.5rem;
+        }
 
-        .identity-badge { font-size: .8rem; }
-        .identity-badge .btn-sm { font-size: .7rem; padding: .15rem .5rem; }
+        .nav-pills .nav-link {
+            color: var(--bs-body-color);
+            border-radius: 8px;
+            padding: 0.65rem 1rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            transition: all 0.2s;
+            margin-bottom: 0.25rem;
+        }
 
+        .nav-pills .nav-link:hover {
+            background: rgba(3, 126, 243, 0.08);
+            color: var(--aiesec-blue);
+            transform: translateX(3px);
+        }
+
+        .nav-pills .nav-link.active {
+            background: var(--aiesec-blue) !important;
+            color: white !important;
+            box-shadow: 0 4px 12px rgba(3, 126, 243, 0.25);
+        }
+
+        /* Custom Cards & Panels */
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 4px 20px 0 var(--glass-shadow);
+            border-radius: 12px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px 0 rgba(0, 0, 0, 0.04);
+        }
+
+        .card-stat {
+            border-left: 4px solid var(--aiesec-blue);
+        }
         .stat-card-green { border-left-color: var(--aiesec-green); }
         .stat-card-orange { border-left-color: var(--aiesec-orange); }
         .stat-card-yellow { border-left-color: var(--aiesec-yellow); }
         .stat-card-cyan { border-left-color: var(--aiesec-cyan); }
 
-        [data-bs-theme="dark"] {
-            --aiesec-blue: #5ba4f7;
-            --aiesec-cyan: #4dd4e0;
-            --aiesec-orange: #f77a65;
-            --aiesec-green: #4dd4a0;
-            --aiesec-yellow: #ffd966;
+        .stat-number { font-size: 2.2rem; font-weight: 700; line-height: 1; }
+        .stat-label { font-size: .8rem; color: #6c757d; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+
+        .stage-badge { font-size: .75rem; padding: .35em .75em; border-radius: 20px; font-weight: 600; }
+        .stage-open { background: #e2e8f0; color: #475569; }
+        .stage-matched { background: #fef3c7; color: #d97706; }
+        .stage-applied { background: #e0f2fe; color: #0284c7; }
+        .stage-accepted { background: #dcfce7; color: #16a34a; }
+        .stage-approved { background: #dbeafe; color: #2563eb; }
+        .stage-papers { background: #f3e8ff; color: #9333ea; }
+        .stage-realized { background: #ccfbf1; color: #0d9488; }
+
+        .problem-active { background: #fee2e2; color: #dc2626; }
+        .problem-fixed { background: #dcfce7; color: #16a34a; }
+
+        .stale-warning { animation: pulse 2.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .7; transform: scale(0.97); } }
+
+        .filter-bar { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--glass-border); padding: 1rem; margin-bottom: 1.5rem; }
+
+        .timeline-item { padding: 0.85rem 1.1rem; border-left: 3px solid var(--aiesec-cyan); margin-bottom: .6rem; background: var(--aiesec-light); border-radius: 0 8px 8px 0; }
+        .timeline-item .ts { font-size: .72rem; color: #6c757d; }
+
+        /* Mobile Header */
+        #mobileHeader {
+            display: none;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--glass-border);
+            padding: 0.75rem 1.5rem;
+            position: sticky;
+            top: 0;
+            z-index: 1010;
+            justify-content: space-between;
+            align-items: center;
         }
-        [data-bs-theme="dark"] body { background: #1a1d23; }
-        [data-bs-theme="dark"] .navbar { background: #242730 !important; }
-        [data-bs-theme="dark"] .card { background: #2a2d37; border-color: #3a3d47; }
-        [data-bs-theme="dark"] .card-header { background: #242730 !important; }
-        [data-bs-theme="dark"] .filter-bar { background: #2a2d37; }
-        [data-bs-theme="dark"] .table { color: #d0d0d0; }
-        [data-bs-theme="dark"] .timeline-item { background: #2a2d37; }
-        [data-bs-theme="dark"] .bg-white { background: #2a2d37 !important; }
-        [data-bs-theme="dark"] .text-muted { color: #999 !important; }
-        [data-bs-theme="dark"] .stage-badge.bg-light { background: #3a3d47 !important; color: #ccc !important; }
-        [data-bs-theme="dark"] .table-light { background: #242730; color: #ccc; }
+
+        @media (max-width: 991.98px) {
+            #sidebar {
+                transform: translateX(-100%);
+            }
+            #sidebar.show {
+                transform: translateX(0);
+            }
+            #mainContent {
+                margin-left: 0;
+                padding: 1.5rem;
+            }
+            #mobileHeader {
+                display: flex;
+            }
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg bg-white shadow-sm sticky-top">
-        <div class="container-fluid px-4">
-            <a class="navbar-brand" href="/">
-                <i class="bi bi-globe2 me-1"></i>{{ lc_name }}
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="mainNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.view_name == 'dashboard' %}active{% endif %}" href="/">
-                            <i class="bi bi-speedometer2 me-1"></i>Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if 'ep_' in request.resolver_match.view_name %}active{% endif %}" href="/eps/">
-                            <i class="bi bi-people me-1"></i>EPs
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if 'ir_' in request.resolver_match.view_name %}active{% endif %}" href="/irs/">
-                            <i class="bi bi-building me-1"></i>IRs
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.view_name == 'matching' %}active{% endif %}" href="/matching/">
-                            <i class="bi bi-link-45deg me-1"></i>Matching
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.view_name == 'problem_list' %}active{% endif %}" href="/problems/">
-                            <i class="bi bi-flag me-1"></i>Problems
-                            {% if nav_problem_count %}<span class="badge bg-danger ms-1">{{ nav_problem_count }}</span>{% endif %}
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.view_name == 'leaderboard' %}active{% endif %}" href="/leaderboard/">
-                            <i class="bi bi-trophy me-1"></i>Board
-                        </a>
-                    </li>
-                    {% if is_vp or is_tl %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.view_name == 'workload' %}active{% endif %}" href="/workload/">
-                            <i class="bi bi-bar-chart-steps me-1"></i>Workload
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.resolver_match.view_name == 'compare' %}active{% endif %}" href="/compare/">
-                            <i class="bi bi-bar-chart me-1"></i>Compare
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
+    <div id="mobileHeader" class="shadow-sm">
+        <a class="navbar-brand text-primary fw-bold" href="/">
+            <i class="bi bi-globe2 me-2"></i>{{ lc_name }}
+        </a>
+        <button class="btn btn-outline-secondary btn-sm" onclick="toggleSidebar()">
+            <i class="bi bi-list fs-5"></i>
+        </button>
+    </div>
 
-                <div class="d-flex align-items-center gap-2 me-3">
+    <div id="appLayout">
+        <!-- Collapsible Left Sidebar -->
+        <aside id="sidebar">
+            <a class="sidebar-brand text-decoration-none" href="/">
+                <i class="bi bi-globe2"></i><span>{{ lc_name }}</span>
+            </a>
+
+            <!-- User Info Panel -->
+            {% if current_member %}
+            <div class="p-3 mb-3 rounded border bg-light-subtle d-flex flex-column gap-2">
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="fw-semibold text-truncate small" style="max-width: 140px;">
+                        <i class="bi bi-person-circle me-1"></i>{{ current_member.name }}
+                    </span>
+                    <span class="badge bg-secondary-subtle text-secondary" style="font-size: 0.65rem;">{{ current_member.get_role_display }}</span>
+                </div>
+                <div class="d-flex gap-1 justify-content-end">
+                    <form method="post" action="/members/logout/" class="d-inline m-0">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm p-1 px-2" style="font-size: 0.65rem;" title="Log out">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Navigation Links -->
+            <ul class="nav nav-pills flex-column mb-auto">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'dashboard' %}active{% endif %}" href="/">
+                        <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if 'ep_' in request.resolver_match.view_name %}active{% endif %}" href="/eps/">
+                        <i class="bi bi-people"></i><span>EPs Pipeline</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if 'ir_' in request.resolver_match.view_name %}active{% endif %}" href="/irs/">
+                        <i class="bi bi-building"></i><span>IR Partners</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'matching' %}active{% endif %}" href="/matching/">
+                        <i class="bi bi-link-45deg"></i><span>Matching</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'problem_list' %}active{% endif %}" href="/problems/">
+                        <i class="bi bi-flag"></i><span>Problems</span>
+                        {% if nav_problem_count %}<span class="badge bg-danger rounded-pill ms-auto">{{ nav_problem_count }}</span>{% endif %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'leaderboard' %}active{% endif %}" href="/leaderboard/">
+                        <i class="bi bi-trophy"></i><span>Leaderboard</span>
+                    </a>
+                </li>
+                {% if is_vp or is_tl %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'workload' %}active{% endif %}" href="/workload/">
+                        <i class="bi bi-bar-chart-steps"></i><span>Workload</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'compare' %}active{% endif %}" href="/compare/">
+                        <i class="bi bi-bar-chart"></i><span>Comparison</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'trigger_expa_sync' %}active{% endif %}" href="/expa-sync/">
+                        <i class="bi bi-cpu"></i><span>Automation</span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+
+            <!-- Settings & Theme at bottom -->
+            <div class="pt-3 border-top mt-auto d-flex flex-column gap-2">
+                <div class="d-flex align-items-center justify-content-between px-2">
                     {% if nav_stale_count %}
                     <a href="/eps/?stage=" class="text-decoration-none" title="{{ nav_stale_count }} stale EPs">
-                        <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>{{ nav_stale_count }}</span>
+                        <span class="badge bg-warning text-dark"><i class="bi bi-clock-history me-1"></i>{{ nav_stale_count }} stale</span>
                     </a>
                     {% endif %}
                     {% if nav_unassigned_count %}
                     <a href="/eps/?assigned=" class="text-decoration-none" title="{{ nav_unassigned_count }} unassigned EPs">
-                        <span class="badge bg-secondary"><i class="bi bi-person-x me-1"></i>{{ nav_unassigned_count }}</span>
+                        <span class="badge bg-secondary"><i class="bi bi-person-x me-1"></i>{{ nav_unassigned_count }} empty</span>
                     </a>
                     {% endif %}
+                </div>
+                <div class="d-flex justify-content-between align-items-center px-2 mt-2">
+                    <span class="text-muted small">Theme</span>
                     <button class="btn btn-sm btn-outline-secondary" id="darkToggle" title="Toggle dark mode" onclick="toggleDark()">
                         <i class="bi bi-moon-stars"></i>
                     </button>
                 </div>
-
-                {% if current_member %}
-                <div class="identity-badge d-flex align-items-center gap-2">
-                    <span class="text-muted">
-                        <i class="bi bi-person-circle me-1"></i>{{ current_member.name }}
-                    </span>
-                    <span class="badge bg-secondary">{{ current_member.get_role_display }}</span>
-                    <a href="/members/picker/?next={{ request.path }}" class="btn btn-outline-secondary btn-sm" title="Switch identity">
-                        <i class="bi bi-arrow-repeat"></i>
-                    </a>
-                    <a href="/members/clear/" class="btn btn-outline-danger btn-sm" title="Clear">
-                        <i class="bi bi-box-arrow-right"></i>
-                    </a>
-                </div>
-                {% endif %}
             </div>
-        </div>
-    </nav>
+        </aside>
 
-    {% block breadcrumbs %}{% endblock %}
+        <!-- Main Content Pane -->
+        <div id="mainContent">
+            {% block breadcrumbs %}{% endblock %}
 
-    {% if messages %}
-    <div class="container-fluid px-4 mt-2">
-        {% for msg in messages %}
-        <div class="alert alert-{{ msg.tags }} alert-dismissible fade show mb-0" role="alert">
-            {{ msg }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            {% if messages %}
+            <div class="container-fluid p-0 mb-3">
+                {% for msg in messages %}
+                <div class="alert alert-{{ msg.tags }} alert-dismissible fade show mb-2 shadow-sm" role="alert">
+                    <i class="bi bi-info-circle-fill me-2"></i>{{ msg }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <main>
+                {% block content %}{% endblock %}
+            </main>
         </div>
-        {% endfor %}
     </div>
-    {% endif %}
-
-    <main class="container-fluid px-4 py-3">
-        {% block content %}{% endblock %}
-    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -196,6 +337,10 @@
             document.documentElement.setAttribute('data-bs-theme', next);
             localStorage.setItem('aiesec-dark-mode', next);
         };
+        window.toggleSidebar = function() {
+            var sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('show');
+        }
     })();
     </script>
     {% block extra_js %}{% endblock %}

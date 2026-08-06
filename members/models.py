@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.db import models
 
 
@@ -46,7 +47,7 @@ class Member(models.Model):
     )
     phone = models.CharField(max_length=30, blank=True, default="")
     email = models.EmailField(blank=True, default="")
-    password = models.CharField(max_length=128, blank=True, default="", help_text="Hashed password. Leave blank for no-password access.")
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name="member_profile")
     is_active = models.BooleanField(default=True, help_text="Inactive members hidden from picker")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -104,21 +105,3 @@ class Member(models.Model):
         if self.role == self.Role.VP:
             return IR.objects.all()
         return IR.objects.filter(assigned_to=self)
-
-    # ── Password auth ─────────────────────────────────────────────
-    def set_password(self, raw_password: str):
-        """Hash and store the password."""
-        from django.contrib.auth.hashers import make_password
-        self.password = make_password(raw_password)
-
-    def check_password(self, raw_password: str) -> bool:
-        """Check a raw password against the stored hash."""
-        if not self.password:
-            return True  # no password set = no auth required
-        from django.contrib.auth.hashers import check_password
-        return check_password(raw_password, self.password)
-
-    @property
-    def has_password(self) -> bool:
-        """True if this member requires a password to log in."""
-        return bool(self.password)

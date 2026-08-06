@@ -1,50 +1,25 @@
 from datetime import timedelta
+from collections import defaultdict
 
 from django.db.models import Avg, Count, F, Q
 from django.shortcuts import render
 from django.utils import timezone
 
 from core.models import SiteConfig, SyncLog
+from core.utils import parse_date_range, apply_date_filter, date_context
 from members.models import Member, Team
 from ops.models import EP, Interaction, StageHistory
 from partners.models import IR
 
-from collections import defaultdict
 
-
-def _parse_date_range(request):
-    """Parse date_from/date_to from request.GET. Returns (date_from, date_to, preset)."""
-    from datetime import date
-
-    preset = request.GET.get("preset", "all")
-    now = timezone.now().date()
-
-    if preset == "week":
-        return now - timedelta(days=7), now, preset
-    if preset == "month":
-        return now - timedelta(days=30), now, preset
-    if preset == "term":
-        return now - timedelta(days=180), now, preset
-
-    date_from = request.GET.get("date_from", "")
-    date_to = request.GET.get("date_to", "")
-    try:
-        date_from = date.fromisoformat(date_from) if date_from else None
-    except ValueError:
-        date_from = None
-    try:
-        date_to = date.fromisoformat(date_to) if date_to else None
-    except ValueError:
-        date_to = None
-
-    return date_from, date_to, preset
+# _parse_date_range is now provided by core.utils.parse_date_range
 
 
 def dashboard(request):
     """Role-scoped dashboard with funnel stats, problem counts, stale counts, date filter."""
     member = request.current_member
     config = SiteConfig.get()
-    date_from, date_to, preset = _parse_date_range(request)
+    date_from, date_to, preset = parse_date_range(request)
 
     # ── Scoped EP queryset ───────────────────────────────────────────
     eps = member.get_visible_eps()
@@ -131,15 +106,12 @@ def dashboard(request):
         "realized_period": realized_period,
         "interactions_period": interactions_period,
         "new_eps_period": new_eps_period,
-        # Date filter state
-        "preset": preset,
-        "date_from": date_from.isoformat() if date_from else "",
-        "date_to": date_to.isoformat() if date_to else "",
         # Config
         "lc_name": config.lc_name,
         "current_term": config.current_term,
         "last_sync": last_sync,
         "expa_token_configured": bool(config.expa_access_token),
+        **date_context(date_from, date_to, preset),
     }
 
     # ── Pipeline forecast ──────────────────────────────────────────
@@ -184,7 +156,7 @@ def leaderboard(request):
     member = request.current_member
     config = SiteConfig.get()
     eps = member.get_visible_eps()
-    date_from, date_to, preset = _parse_date_range(request)
+    date_from, date_to, preset = parse_date_range(request)
 
     # ── Filters ──────────────────────────────────────────────────
     team_filter = request.GET.get("team", "")
@@ -217,51 +189,76 @@ def leaderboard(request):
         eps_filtered = eps
 
     now = timezone.now()
-    stats = []
-    for m in visible_members:
-        m_eps = eps.filter(assigned_to=m)
-        m_eps_filtered = eps_filtered.filter(assigned_to=m)
-        if track_filter:
-            m_eps = m_eps.filter(track=track_filter)
-            m_eps_filtered = m_eps_filtered.filter(track=track_filter)
+    
+    # Cache key based on filters and current user's scope
+    cache_key = f"leaderboard_{member.pk}_{date_from}_{date_to}_{team_filter}_{track_filter}"
+    from django.core.cache import cache
+    stats = cache.get(cache_key)
 
-        total = m_eps.count()
-        realized = m_eps_filtered.filter(current_stage="realized").count()
-        realized_alltime = m_eps.filter(current_stage="realized").count()
-        problems = m_eps.filter(problem_flag__in=["fix_ep_problem", "fix_ir_problem"]).count()
-        open_eps = m_eps.exclude(current_stage="realized").count()
-        stale = sum(1 for ep in m_eps.only("pk", "current_stage", "last_activity_at")
-                    if (now - ep.last_activity_at).days > config.get_threshold(ep.current_stage))
+    if not stats:
+        stats = []
+        # Use select_related and prefetch_related for optimizations
+        visible_members = visible_members.prefetch_related('assigned_eps', 'author')
+        
+        # We still need to loop for some complex Python logic (streaks, avg_days, stale thresholds)
+        # But we can optimize the DB queries significantly using annotations
+        from django.db.models import Count, Q
+        
+        annotated_members = visible_members.annotate(
+            total_eps=Count('assigned_eps', filter=Q(assigned_eps__in=eps)),
+            realized_filtered=Count('assigned_eps', filter=Q(assigned_eps__in=eps_filtered, assigned_eps__current_stage="realized")),
+            realized_alltime=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__current_stage="realized")),
+            problems_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__problem_flag__in=["fix_ep_problem", "fix_ir_problem"])),
+            open_eps_count=Count('assigned_eps', filter=~Q(assigned_eps__current_stage="realized") & Q(assigned_eps__in=eps)),
+            interactions_total=Count('author', filter=Q(author__in=interactions_qs)),
+            gt_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__track="GT")),
+            gte_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__track="GTe")),
+        )
+        
+        for m in annotated_members:
+            m_eps = eps.filter(assigned_to=m)
+            if track_filter:
+                m_eps = m_eps.filter(track=track_filter)
 
-        realized_eps = m_eps.filter(current_stage="realized")
-        avg_days = None
-        if realized_eps.exists():
-            total_days, cnt = 0, 0
-            for ep in realized_eps:
-                first = ep.stage_history.order_by("changed_at").first()
-                realized_entry = ep.stage_history.filter(stage="realized").order_by("-changed_at").first()
-                if first and realized_entry:
-                    total_days += max((realized_entry.changed_at - first.changed_at).days, 1)
-                    cnt += 1
-            if cnt > 0:
-                avg_days = round(total_days / cnt, 1)
+            # Compute complex stats in memory
+            stale = sum(1 for ep in m_eps.only("pk", "current_stage", "last_activity_at")
+                        if (now - ep.last_activity_at).days > config.get_threshold(ep.current_stage))
 
-        m_interactions = interactions_qs.filter(author=m)
-        interactions_count = m_interactions.count()
-        new_eps = m_eps.filter(created_at__date__gte=date_from).count() if date_from else 0
-        streak = _compute_streak(m, eps)
+            realized_eps = m_eps.filter(current_stage="realized").prefetch_related("stage_history")
+            avg_days = None
+            if realized_eps.exists():
+                total_days, cnt = 0, 0
+                for ep in realized_eps:
+                    history = list(ep.stage_history.all())
+                    if not history:
+                        continue
+                    first = min(history, key=lambda x: x.changed_at)
+                    realized_entries = [h for h in history if h.stage == "realized"]
+                    if first and realized_entries:
+                        realized_entry = max(realized_entries, key=lambda x: x.changed_at)
+                        total_days += max((realized_entry.changed_at - first.changed_at).days, 1)
+                        cnt += 1
+                if cnt > 0:
+                    avg_days = round(total_days / cnt, 1)
 
-        gt_count = m_eps.filter(track="GT").count()
-        gte_count = m_eps.filter(track="GTe").count()
+            new_eps = m_eps.filter(created_at__date__gte=date_from).count() if date_from else 0
+            streak = _compute_streak(m, eps)
+            
+            # Score formula: (matched * 10) + (realized * 50) + (emails/interactions * 1)
+            # We don't have "matched" easily accessible here yet, so we use realized & interactions
+            score = (m.realized_filtered * 50) + m.interactions_total
 
-        stats.append({
-            "member": m, "total": total, "realized": realized,
-            "realized_alltime": realized_alltime, "problems": problems,
-            "open_eps": open_eps, "stale": stale, "avg_days": avg_days,
-            "interactions_count": interactions_count, "new_eps": new_eps,
-            "streak": streak, "gt_count": gt_count, "gte_count": gte_count,
-            "team_name": m.team.name if m.team else "—",
-        })
+            stats.append({
+                "member": m, "total": m.total_eps, "realized": m.realized_filtered,
+                "realized_alltime": m.realized_alltime, "problems": m.problems_count,
+                "open_eps": m.open_eps_count, "stale": stale, "avg_days": avg_days,
+                "interactions_count": m.interactions_total, "new_eps": new_eps,
+                "streak": streak, "gt_count": m.gt_count, "gte_count": m.gte_count,
+                "team_name": m.team.name if m.team else "—",
+                "score": score,
+            })
+            
+        cache.set(cache_key, stats, 300)  # Cache for 5 minutes
 
     # ── Sort ──────────────────────────────────────────────────────
     sort_by = request.GET.get("sort", "realized")
@@ -319,10 +316,9 @@ def leaderboard(request):
         "total_interactions": total_interactions_all, "total_new": total_new_all,
         "avg_realized": avg_realized, "members_with_realized": members_with_realized,
         "teams": teams, "team_filter": team_filter, "track_filter": track_filter,
-        "sort_by": sort_by, "sort_order": sort_order, "preset": preset,
-        "date_from": date_from.isoformat() if date_from else "",
-        "date_to": date_to.isoformat() if date_to else "",
+        "sort_by": sort_by, "sort_order": sort_order,
         "tracks": EP.Track.choices, "member_count": len(stats),
+        **date_context(date_from, date_to, preset),
     }
     return render(request, "dashboard/leaderboard.html", context)
 
@@ -497,16 +493,46 @@ def compare(request):
 
 
 def trigger_expa_sync(request):
-    """POST-only: trigger background EXPA sync."""
-    if request.method != "POST":
-        from django.http import HttpResponseNotAllowed
-        return HttpResponseNotAllowed(["POST"])
+    """GET: show automation dashboard. POST: trigger background EXPA sync."""
+    from django.conf import settings
+    from django.shortcuts import redirect
+    from core.models import SiteConfig, SyncLog
 
-    from ops.expa import sync_from_expa
-    from django.http import JsonResponse
+    config = SiteConfig.get()
 
-    try:
-        results = sync_from_expa()
-        return JsonResponse({"status": "ok", "results": results})
-    except Exception as e:
-        return JsonResponse({"status": "error", "detail": str(e)}, status=500)
+    if request.method == "POST":
+        from django.contrib import messages
+        try:
+            from automation.tasks import sync_expa_eps
+            sync_expa_eps.delay()
+            messages.success(request, "EXPA sync task dispatched to background worker.")
+        except Exception:
+            # Celery/Redis unavailable — run standalone sync in subprocess
+            import subprocess, sys
+            proc = subprocess.Popen(
+                [sys.executable, "sync_expa_standalone.py"],
+                cwd=str(settings.BASE_DIR),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            messages.info(
+                request,
+                "Celery unavailable — EXPA sync started as local subprocess (PID {}).".format(proc.pid),
+            )
+        return redirect("trigger_expa_sync")
+
+    sync_logs = SyncLog.objects.all()[:15]
+    from automation.models import EmailTemplate
+    email_templates = EmailTemplate.objects.all()
+    
+    context = {
+        "expa_token_configured": bool(config.expa_access_token),
+        "expa_token": config.expa_access_token or "5zPLES-3w6pq82iPrXgo...",
+        "smtp_host": getattr(settings, "EMAIL_HOST", ""),
+        "sender_email": getattr(settings, "DEFAULT_FROM_EMAIL", ""),
+        "sync_logs": sync_logs,
+        "email_templates": email_templates,
+        "lc_name": config.lc_name,
+        "current_member": request.current_member,
+    }
+    return render(request, "dashboard/automation.html", context)

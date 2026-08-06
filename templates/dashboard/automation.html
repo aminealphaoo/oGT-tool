@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Automation Control Center — {{ lc_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 text-primary fw-bold"><i class="bi bi-cpu me-2"></i>Automation Control Center</h4>
+        <p class="text-muted small mb-0 mt-1">Monitor background tasks, EXPA API sync status, and system integrations</p>
+    </div>
+    <form method="post" action="{% url 'trigger_expa_sync' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-cloud-download me-2"></i>Trigger Manual Sync
+        </button>
+    </form>
+</div>
+
+<!-- Diagnostics Grid -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-key me-2 text-primary"></i>EXPA API Auth</h6>
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="small text-muted">Token Status</span>
+                    {% if expa_token_configured %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2.5 py-1">Active</span>
+                    {% else %}
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2.5 py-1">Missing</span>
+                    {% endif %}
+                </div>
+                <div class="mt-3 small text-muted text-truncate">
+                    <code>Token: {{ expa_token|truncatechars:15 }}</code>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-envelope me-2 text-primary"></i>SMTP Relay (Brevo)</h6>
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="small text-muted">Host</span>
+                    <span class="fw-semibold small">{{ smtp_host }}</span>
+                </div>
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="small text-muted">Sender</span>
+                    <span class="fw-semibold small text-truncate" style="max-width: 160px;">{{ sender_email }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+            <div class="card-body">
+                <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-database me-2 text-primary"></i>Supabase DB Health</h6>
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="small text-muted">Connection Mode</span>
+                    <span class="badge bg-info-subtle text-info border border-info-subtle">Direct SQL</span>
+                </div>
+                <div class="d-flex align-items-center justify-content-between">
+                    <span class="small text-muted">Max Pool Age</span>
+                    <span class="fw-semibold small">0s (Closed immediately)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sync Logs Table -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-transparent border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2 text-primary"></i>Recent Synchronization Logs</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="p-3">Started At</th>
+                    <th>Finished At</th>
+                    <th>Status</th>
+                    <th class="text-center">Imported</th>
+                    <th class="text-center">Skipped</th>
+                    <th class="p-3">Error / Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in sync_logs %}
+                <tr>
+                    <td class="p-3 fw-semibold small">{{ log.started_at|date:"Y-m-d H:i:s" }}</td>
+                    <td class="small">{{ log.finished_at|date:"Y-m-d H:i:s"|default:"—" }}</td>
+                    <td>
+                        {% if log.status == "success" %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5">Success</span>
+                        {% elif log.status == "failed" %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-0.5">Failed</span>
+                        {% else %}
+                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-0.5 stale-warning">Running</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center fw-bold text-success">{{ log.created_count }}</td>
+                    <td class="text-center text-muted">{{ log.skipped_count }}</td>
+                    <td class="p-3 text-muted small text-truncate" style="max-width: 250px;" title="{{ log.error_message }}">
+                        {{ log.error_message|default:"No errors logged." }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">No sync logs found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<!-- Email Templates Table -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-transparent border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-envelope-paper me-2 text-primary"></i>Automated Email Templates</h6>
+        <span class="badge bg-primary rounded-pill">{{ email_templates|length }}</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="p-3">Template Name</th>
+                    <th>Trigger Stage</th>
+                    <th>Subject Template</th>
+                    <th class="text-center">Status</th>
+                    <th class="p-3 text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tpl in email_templates %}
+                <tr>
+                    <td class="p-3 fw-semibold text-body">{{ tpl.name }}</td>
+                    <td><span class="stage-badge stage-{{ tpl.trigger_stage }}">{{ tpl.get_trigger_stage_display }}</span></td>
+                    <td class="text-muted small text-truncate" style="max-width: 300px;">{{ tpl.subject }}</td>
+                    <td class="text-center">
+                        {% if tpl.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Disabled</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-3 text-end">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="alert('Template editing coming soon.')">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">No email templates configured.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

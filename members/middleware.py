@@ -3,33 +3,37 @@ from django.shortcuts import redirect
 from .models import Member
 
 
-class IdentityMiddleware:
-    """Attach current_member to request based on session identity."""
-
-    EXEMPT_PATHS = ["/members/picker/", "/members/clear/", "/admin/", "/static/", "/media/"]
+class CurrentMemberMiddleware:
+    """Attach current_member to request based on authenticated user."""
 
     def __init__(self, get_response):
         self.get_response = get_response
 
     def __call__(self, request):
-        # Skip identity check for exempt paths
-        path = request.path
-        for exempt in self.EXEMPT_PATHS:
-            if path.startswith(exempt):
-                return self.get_response(request)
-
-        member_id = request.session.get("identity_member_id")
-        if member_id:
+        request.current_member = None
+        if hasattr(request, "user") and request.user.is_authenticated:
             try:
-                member = Member.objects.select_related("team").get(pk=member_id, is_active=True)
-                request.current_member = member
+                # Use select_related to avoid N+1 if member is accessed
+                request.current_member = request.user.member_profile
             except Member.DoesNotExist:
-                request.current_member = None
-        else:
-            request.current_member = None
+                pass
+                
+        return self.get_response(request)
 
-        # Redirect to identity picker if no identity set
-        if request.current_member is None and not path.startswith("/members/picker/"):
-            return redirect(f"/members/picker/?next={path}")
+class RequireLoginMiddleware:
+    """Require login for all views except those starting with exempt paths."""
+    
+    EXEMPT_PATHS = ["/members/login/", "/admin/", "/static/", "/media/"]
 
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        path = request.path
+        is_exempt = any(path.startswith(p) for p in self.EXEMPT_PATHS)
+        
+        if not is_exempt and not request.user.is_authenticated:
+            from django.shortcuts import redirect
+            return redirect(f"/members/login/?next={path}")
+            
         return self.get_response(request)

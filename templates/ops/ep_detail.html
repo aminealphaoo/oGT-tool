@@ -2,12 +2,12 @@
 {% block title %}{{ ep.full_name }} — AIESEC LC Carthage{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <a href="{% url 'ep_list' %}" class="text-decoration-none text-muted small">
             <i class="bi bi-arrow-left me-1"></i>Back to EPs
         </a>
-        <h3 class="mb-0 mt-1">{{ ep.full_name }}</h3>
+        <h3 class="mb-0 mt-1 fw-bold">{{ ep.full_name }}</h3>
     </div>
     <div class="d-flex gap-2">
         {% if not ep.is_archived %}
@@ -23,256 +23,395 @@
         </a>
         <span class="badge bg-warning text-dark align-self-center">Archived</span>
         {% endif %}
-        <a href="{% url 'ep_edit' ep.pk %}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-pencil me-1"></i>Edit
+        <a href="{% url 'ep_edit' ep.pk %}" class="btn btn-primary btn-sm shadow-sm">
+            <i class="bi bi-pencil me-1"></i>Edit Profile
         </a>
     </div>
 </div>
 
-<div class="row g-3">
-    <!-- Left column: EP Info -->
-    <div class="col-lg-8">
-        <!-- Personal info -->
-        <div class="card shadow-sm mb-3">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h6 class="mb-0"><i class="bi bi-person-badge me-2"></i>Profile</h6>
-                <div>
-                    <span class="stage-badge stage-{{ ep.current_stage }} me-1">{{ ep.get_current_stage_display }}</span>
-                    {% if ep.problem_flag != "none" %}
-                    <span class="stage-badge {% if ep.problem_flag == 'problem_fixed' %}problem-fixed{% else %}problem-active{% endif %}">
-                        {{ ep.get_problem_flag_display }}
-                    </span>
-                    {% endif %}
-                    {% if ep.is_stale %}
-                    <span class="badge bg-warning text-dark ms-1 stale-warning" title="Idle {{ ep.idle_days }} days">
-                        <i class="bi bi-clock-history"></i> Stale {{ ep.idle_days }}d
-                    </span>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="row g-2 small">
-                    <div class="col-md-4"><strong>Phone:</strong> {{ ep.phone|default:"—" }}</div>
-                    <div class="col-md-4"><strong>Email:</strong> {{ ep.email|default:"—" }}</div>
-                    <div class="col-md-4"><strong>Term:</strong> {{ ep.term }}</div>
-                    <div class="col-md-4"><strong>Track:</strong> {{ ep.get_track_display }}</div>
-                    <div class="col-md-4"><strong>University:</strong> {{ ep.university|default:"—" }}</div>
-                    <div class="col-md-4"><strong>Major:</strong> {{ ep.major|default:"—" }}</div>
-                    <div class="col-md-4"><strong>Year:</strong> {{ ep.year_of_study|default:"—" }}</div>
-                    <div class="col-md-4"><strong>Assigned To:</strong> {{ ep.assigned_to.name|default:"—" }}</div>
-                    <div class="col-md-4"><strong>Source:</strong> {{ ep.get_source_display }}</div>
-                    <div class="col-12">
-                        <strong>Socials:</strong> {{ ep.socials|default:"—" }}
-                        {% if ep.whatsapp_number %}
-                        <a href="https://wa.me/{{ ep.whatsapp_number }}" target="_blank" class="btn btn-sm btn-success ms-2" style="font-size:.7rem;">
-                            <i class="bi bi-whatsapp me-1"></i>Chat
-                        </a>
-                        {% endif %}
-                    </div>
-                </div>
-                {% if ep.matched_opportunity %}
-                <hr>
-                <div class="small">
-                    <strong><i class="bi bi-link-45deg me-1"></i>Matched Opportunity:</strong>
-                    <a href="{% url 'ir_detail' ep.matched_opportunity.ir.pk %}">
-                        {{ ep.matched_opportunity.ir.entity_name }} ({{ ep.matched_opportunity.ir.country }})
-                    </a>
-                    — {{ ep.matched_opportunity.get_type_display }}
-                    {% if not ep.matched_opportunity.is_open %}<span class="badge bg-secondary">Closed</span>{% endif %}
-                </div>
-                {% endif %}
-            </div>
+<!-- Header Info Bar -->
+<div class="card shadow-sm mb-4 border-0">
+    <div class="card-body py-3 d-flex flex-wrap gap-4 align-items-center bg-light-subtle rounded">
+        <div>
+            <span class="text-muted small d-block">Current Stage</span>
+            <span class="stage-badge stage-{{ ep.current_stage }} fs-6">{{ ep.get_current_stage_display }}</span>
         </div>
-
-        <!-- Stage controls -->
-        <div class="card shadow-sm mb-3">
-            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-arrow-right-circle me-2"></i>Change Stage</h6></div>
-            <div class="card-body">
-                <!-- Prerequisites checklist -->
-                <div class="mb-2 p-2 bg-light rounded small">
-                    <span class="fw-semibold text-muted">Stage readiness:</span>
-                    <div class="d-flex flex-wrap gap-1 mt-1">
-                        {% for stage_key, status in prereq_status.items %}
-                        {% if stage_key != ep.current_stage %}
-                        <span class="badge {% if status.0 %}bg-success-subtle text-success{% else %}bg-danger-subtle text-danger{% endif %}" title="{% if not status.0 %}Missing: {{ status.1|join:', ' }}{% else %}Ready{% endif %}">
-                            {{ stage_key|slice:":12"|title }}{% if status.0 %} ✓{% else %} ✗{% endif %}
-                        </span>
-                        {% endif %}
-                        {% endfor %}
-                    </div>
-                </div>
-
-                <form method="post" action="{% url 'ep_advance_stage' ep.pk %}" class="row g-2 align-items-end">
-                    {% csrf_token %}
-                    <div class="col-md-7">
-                        <label class="form-label small fw-semibold">New Stage</label>
-                        <select name="new_stage" class="form-select form-select-sm">
-                            {% for val, label in advance_form.fields.new_stage.choices %}
-                            <option value="{{ val }}" {% if val == ep.current_stage %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <button type="submit" class="btn btn-sm btn-primary w-100">
-                            <i class="bi bi-check-lg me-1"></i>Update Stage
-                        </button>
-                    </div>
-                    <div class="col-12">
-                        <input type="text" name="note" class="form-control form-control-sm" placeholder="Optional note (e.g. 'Sent contract to EP')">
-                    </div>
-                </form>
-
-                <!-- Revert button -->
-                {% if previous_stage %}
-                <form method="post" action="{% url 'ep_revert_stage' ep.pk %}" class="mt-2 pt-2 border-top" onsubmit="return confirm('Revert {{ ep.full_name }} back to {{ previous_stage }}?')">
-                    {% csrf_token %}
-                    <input type="hidden" name="note" value="Reverted">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>Revert to {{ previous_stage }}
-                    </button>
-                    <span class="text-muted small ms-1">(if stage was set by mistake)</span>
-                </form>
-                {% endif %}
-            </div>
+        <div class="border-start ps-4">
+            <span class="text-muted small d-block">Track</span>
+            <span class="fw-semibold">{{ ep.get_track_display }}</span>
         </div>
-
-        <!-- Problem flag -->
-        <div class="card shadow-sm mb-3">
-            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-flag me-2"></i>Problem Flag</h6></div>
-            <div class="card-body">
-                <form method="post" action="{% url 'ep_set_problem' ep.pk %}" class="row g-2 align-items-end">
-                    {% csrf_token %}
-                    <div class="col-md-5">
-                        <select name="flag" class="form-select form-select-sm">
-                            {% for val, label in problem_flags %}
-                            <option value="{{ val }}" {% if val == ep.problem_flag %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <button type="submit" class="btn btn-sm btn-outline-danger w-100">
-                            <i class="bi bi-flag me-1"></i>Set Flag
-                        </button>
-                    </div>
-                    <div class="col-12">
-                        <input type="text" name="note" class="form-control form-control-sm" placeholder="Describe the problem...">
-                    </div>
-                </form>
-            </div>
+        <div class="border-start ps-4">
+            <span class="text-muted small d-block">Assigned To</span>
+            <span class="fw-semibold"><i class="bi bi-person me-1"></i>{{ ep.assigned_to.name|default:"Unassigned" }}</span>
         </div>
+        <div class="border-start ps-4 flex-grow-1">
+            <span class="text-muted small d-block">Status Flags</span>
+            {% if ep.problem_flag != "none" %}
+            <span class="badge {% if ep.problem_flag == 'problem_fixed' %}bg-success-subtle text-success{% else %}bg-danger-subtle text-danger{% endif %} border">
+                <i class="bi bi-flag me-1"></i>{{ ep.get_problem_flag_display }}
+            </span>
+            {% else %}
+            <span class="badge bg-light text-muted border">No issues</span>
+            {% endif %}
+            
+            {% if ep.is_stale %}
+            <span class="badge bg-warning text-dark ms-2 shadow-sm" title="Idle {{ ep.idle_days }} days">
+                <i class="bi bi-clock-history"></i> Stale {{ ep.idle_days }}d
+            </span>
+            {% endif %}
+        </div>
+    </div>
+</div>
 
-        <!-- TL Notes (private — TL/VP only) -->
-        {% if is_vp or is_tl %}
-        <div class="card shadow-sm mb-3 border-start border-warning border-3">
-            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-journal-text me-2"></i>TL Notes <span class="badge bg-warning text-dark ms-1">Private</span></h6></div>
-            <div class="card-body">
-                <form method="post" action="{% url 'ep_update_tl_notes' ep.pk %}">
-                    {% csrf_token %}
-                    <textarea name="tl_notes" class="form-control form-control-sm" rows="3" placeholder="Private notes for TL/VP only...">{{ ep.tl_notes }}</textarea>
-                    <button type="submit" class="btn btn-sm btn-outline-warning mt-2">
-                        <i class="bi bi-save me-1"></i>Save Notes
-                    </button>
-                </form>
+<!-- Navigation Tabs -->
+<ul class="nav nav-tabs mb-4" id="epTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-semibold" id="process-tab" data-bs-toggle="tab" data-bs-target="#process" type="button" role="tab" aria-controls="process" aria-selected="true">
+            <i class="bi bi-diagram-3 me-2"></i>Stage & Process
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button" role="tab" aria-controls="profile" aria-selected="false">
+            <i class="bi bi-person-badge me-2"></i>Profile & Info
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link fw-semibold" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button" role="tab" aria-controls="activity" aria-selected="false">
+            <i class="bi bi-activity me-2"></i>Activity & Notes
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="epTabsContent">
+    <!-- TAB 1: PROCESS & STAGE -->
+    <div class="tab-pane fade show active" id="process" role="tabpanel" aria-labelledby="process-tab">
+        <!-- Messages inside tab for HTMX requests -->
+        {% if messages %}
+        <div class="mb-3">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm py-2 px-3 small" role="alert">
+                {{ message|safe }}
+                <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
+            {% endfor %}
         </div>
         {% endif %}
-
-        <!-- Interaction log -->
-        <div class="card shadow-sm mb-3">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h6 class="mb-0"><i class="bi bi-chat-dots me-2"></i>Interaction Log</h6>
-                <span class="badge bg-secondary">{{ interactions|length }}</span>
-            </div>
-            <div class="card-body">
-                <form method="post" action="{% url 'ep_add_interaction' ep.pk %}" class="mb-3">
-                    {% csrf_token %}
-                    <div class="input-group">
-                        <textarea name="note" class="form-control form-control-sm" rows="2" placeholder="Log an interaction... (WhatsApp message, call, meeting)"></textarea>
-                        <button type="submit" class="btn btn-sm btn-primary">
-                            <i class="bi bi-send"></i>
-                        </button>
+        
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <!-- Stage Control -->
+                <div class="card shadow-sm border-0 mb-4 h-100">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-arrow-right-circle me-2"></i>Advance Stage</h6>
                     </div>
-                </form>
-
-                <div class="interaction-list">
-                    {% for i in interactions %}
-                    <div class="timeline-item">
-                        <div class="d-flex justify-content-between">
-                            <strong class="small">{{ i.author.name|default:"System" }}</strong>
-                            <span class="ts">{{ i.date|date:"M d, H:i" }}</span>
+                    <div class="card-body">
+                        <!-- Prerequisites checklist -->
+                        <div class="mb-4 p-3 bg-light rounded border">
+                            <span class="fw-semibold text-muted d-block mb-2">Stage Readiness Checklist:</span>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for stage_key, status in prereq_status.items %}
+                                {% if stage_key != ep.current_stage %}
+                                <span class="badge {% if status.0 %}bg-success-subtle text-success border border-success-subtle{% else %}bg-danger-subtle text-danger border border-danger-subtle{% endif %} px-2 py-1" title="{% if not status.0 %}Missing: {{ status.1|join:', ' }}{% else %}Ready{% endif %}">
+                                    {{ stage_key|slice:":12"|title }}{% if status.0 %} <i class="bi bi-check2"></i>{% else %} <i class="bi bi-x"></i>{% endif %}
+                                </span>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
                         </div>
-                        <p class="mb-0 small">{{ i.note }}</p>
+
+                        <form method="post" action="{% url 'ep_advance_stage' ep.pk %}" class="row g-3"
+                              hx-post="{% url 'ep_advance_stage' ep.pk %}"
+                              hx-target="#process" hx-select="#process" hx-swap="outerHTML">
+                            {% csrf_token %}
+                            <div class="col-md-8">
+                                <label class="form-label small fw-semibold">Move EP to:</label>
+                                <select name="new_stage" class="form-select">
+                                    {% for val, label in advance_form.fields.new_stage.choices %}
+                                    <option value="{{ val }}" {% if val == ep.current_stage %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="bi bi-check-lg me-1"></i>Update
+                                </button>
+                            </div>
+                            <div class="col-12">
+                                <input type="text" name="note" class="form-control" placeholder="Optional context (e.g. 'Sent contract to EP')">
+                            </div>
+                        </form>
+
+                        <!-- Revert button -->
+                        {% if previous_stage %}
+                        <form method="post" action="{% url 'ep_revert_stage' ep.pk %}" class="mt-4 pt-3 border-top" 
+                              hx-post="{% url 'ep_revert_stage' ep.pk %}"
+                              hx-target="#process" hx-select="#process" hx-swap="outerHTML"
+                              onsubmit="return confirm('Revert {{ ep.full_name }} back to {{ previous_stage }}?')">
+                            {% csrf_token %}
+                            <input type="hidden" name="note" value="Reverted">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Revert mistake (back to {{ previous_stage }})
+                            </button>
+                        </form>
+                        {% endif %}
                     </div>
-                    {% empty %}
-                    <p class="text-muted small text-center py-2">No interactions logged yet.</p>
-                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <!-- Match Status -->
+                <div class="card shadow-sm border-0 mb-4 h-100">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="mb-0 fw-bold text-success"><i class="bi bi-link-45deg me-2"></i>Match Status</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if ep.matched_opportunity %}
+                        <div class="text-center mb-3">
+                            <i class="bi bi-check-circle text-success fs-1"></i>
+                            <h5 class="mt-2 text-success">Matched!</h5>
+                        </div>
+                        <div class="p-3 bg-light rounded border">
+                            <p class="mb-1 fw-semibold"><a href="{% url 'ir_detail' ep.matched_opportunity.ir.pk %}" class="text-decoration-none">{{ ep.matched_opportunity.ir.entity_name }} ({{ ep.matched_opportunity.ir.country }})</a></p>
+                            <p class="mb-2 text-muted small">{{ ep.matched_opportunity.get_type_display }} Role</p>
+                            {% if ep.matched_opportunity.title %}
+                            <p class="mb-0 small fw-semibold">{{ ep.matched_opportunity.title }}</p>
+                            {% endif %}
+                            <div class="mt-2 pt-2 border-top">
+                                {% if not ep.matched_opportunity.is_open %}<span class="badge bg-secondary">Position Closed</span>{% else %}<span class="badge bg-success">Position Open</span>{% endif %}
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-search text-muted fs-1 mb-2"></i>
+                            <p class="text-muted">Not matched yet.</p>
+                            <a href="{% url 'matching' %}?track={{ ep.track }}&ep_id={{ ep.pk }}" class="btn btn-outline-primary mt-2">
+                                <i class="bi bi-magic me-1"></i>Find Match
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-12">
+                <!-- Problem flag -->
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold text-danger"><i class="bi bi-flag me-2"></i>Issue Tracking</h6></div>
+                    <div class="card-body bg-danger-subtle">
+                        <form method="post" action="{% url 'ep_set_problem' ep.pk %}" class="row g-2 align-items-end">
+                            {% csrf_token %}
+                            <div class="col-md-4">
+                                <select name="flag" class="form-select border-danger">
+                                    {% for val, label in problem_flags %}
+                                    <option value="{{ val }}" {% if val == ep.problem_flag %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <input type="text" name="note" class="form-control border-danger" placeholder="Describe the problem context...">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-danger w-100">
+                                    Update Flag
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Right column: Stage History & Attachments -->
-    <div class="col-lg-4">
-        <!-- Stage History -->
-        <div class="card shadow-sm mb-3">
-            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Stage History</h6></div>
-            <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
-                {% for h in stage_history %}
-                <div class="px-3 py-2 border-bottom small">
-                    <div class="d-flex justify-content-between">
-                        <span class="stage-badge stage-{{ h.stage }}">{{ h.get_stage_display }}</span>
-                        <span class="text-muted" style="font-size:.7rem;">{{ h.changed_at|date:"M d, H:i" }}</span>
+    <!-- TAB 2: PROFILE & INFO -->
+    <div class="tab-pane fade" id="profile" role="tabpanel" aria-labelledby="profile-tab">
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4">
+                        <h5 class="mb-4 pb-2 border-bottom fw-bold text-primary">Personal Details</h5>
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <label class="text-muted small d-block mb-1">Full Name</label>
+                                <div class="fw-semibold">{{ ep.full_name }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-muted small d-block mb-1">Term</label>
+                                <div>{{ ep.term }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-muted small d-block mb-1">Email</label>
+                                <div><a href="mailto:{{ ep.email }}" class="text-decoration-none">{{ ep.email|default:"—" }}</a></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-muted small d-block mb-1">Phone</label>
+                                <div class="d-flex align-items-center gap-2">
+                                    {{ ep.phone|default:"—" }}
+                                    {% if ep.whatsapp_number %}
+                                    <a href="https://wa.me/{{ ep.whatsapp_number }}" target="_blank" class="badge bg-success text-decoration-none p-2">
+                                        <i class="bi bi-whatsapp"></i> Chat
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <h5 class="mb-4 pb-2 border-bottom fw-bold text-primary mt-5">Academic Background</h5>
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <label class="text-muted small d-block mb-1">University</label>
+                                <div>{{ ep.university|default:"—" }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-muted small d-block mb-1">Major</label>
+                                <div>{{ ep.major|default:"—" }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-muted small d-block mb-1">Year of Study</label>
+                                <div>{{ ep.year_of_study|default:"—" }}</div>
+                            </div>
+                        </div>
+
+                        <h5 class="mb-4 pb-2 border-bottom fw-bold text-primary mt-5">Socials & Links</h5>
+                        <div class="p-3 bg-light rounded">
+                            {{ ep.socials|default:"No links provided." }}
+                        </div>
                     </div>
-                    {% if h.note %}<p class="mb-0 mt-1 text-muted" style="font-size:.75rem;">{{ h.note }}</p>{% endif %}
-                    <div style="font-size:.7rem; color:#aaa;">by {{ h.changed_by.name|default:"?" }}</div>
                 </div>
-                {% empty %}
-                <p class="text-muted small text-center py-3">No history yet.</p>
-                {% endfor %}
+            </div>
+            
+            <div class="col-lg-4">
+                <!-- Attachments -->
+                <div class="card shadow-sm border-0 mb-4 h-100">
+                    <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-paperclip me-2"></i>Documents</h6></div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            {% for a in attachments %}
+                            <div class="d-flex justify-content-between align-items-center p-2 mb-2 bg-light border rounded">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-file-earmark-text text-primary fs-5"></i>
+                                    <div>
+                                        <a href="{{ a.file.url }}" target="_blank" class="d-block fw-semibold text-decoration-none small" title="{{ a.file.name }}">{{ a.get_label_display }}</a>
+                                        <span class="text-muted" style="font-size: .65rem;">{{ a.uploaded_at|date:"M d, Y" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="text-center p-4 bg-light rounded text-muted">
+                                <i class="bi bi-folder2-open fs-2 d-block mb-2"></i>
+                                <span class="small">No files uploaded.</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <hr>
+                        
+                        <form method="post" action="{% url 'ep_upload_attachment' ep.pk %}" enctype="multipart/form-data" class="mt-3">
+                            {% csrf_token %}
+                            <div class="mb-2">
+                                <input type="file" name="file" class="form-control form-control-sm" required>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <select name="label" class="form-select form-select-sm w-50">
+                                    <option value="contract">Contract</option>
+                                    <option value="passport">Passport/ID</option>
+                                    <option value="cv">CV</option>
+                                    <option value="acceptance">Acceptance</option>
+                                    <option value="other">Other</option>
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary w-50">
+                                    Upload
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
+    </div>
 
-        <!-- Attachments -->
-        <div class="card shadow-sm mb-3">
-            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-upload me-2"></i>Upload Attachment</h6></div>
-            <div class="card-body">
-                <form method="post" action="{% url 'ep_upload_attachment' ep.pk %}" enctype="multipart/form-data" class="row g-2 align-items-end small">
-                    {% csrf_token %}
-                    <div class="col-md-5">
-                        <input type="file" name="file" class="form-control form-control-sm" required>
+    <!-- TAB 3: ACTIVITY & NOTES -->
+    <div class="tab-pane fade" id="activity" role="tabpanel" aria-labelledby="activity-tab">
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-chat-dots me-2"></i>Communication Log</h6>
+                        <span class="badge bg-secondary rounded-pill">{{ interactions|length }}</span>
                     </div>
-                    <div class="col-md-4">
-                        <select name="label" class="form-select form-select-sm">
-                            <option value="contract">Contract</option>
-                            <option value="passport">Passport / ID</option>
-                            <option value="cv">CV</option>
-                            <option value="acceptance">Acceptance Letter</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <button type="submit" class="btn btn-sm btn-outline-primary w-100">
-                            <i class="bi bi-cloud-upload me-1"></i>Upload
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
+                    <div class="card-body d-flex flex-column">
+                        <form method="post" action="{% url 'ep_add_interaction' ep.pk %}" class="mb-4 p-3 bg-light rounded border">
+                            {% csrf_token %}
+                            <label class="fw-semibold small mb-2">Log an interaction</label>
+                            <div class="input-group">
+                                <textarea name="note" class="form-control" rows="2" placeholder="e.g. 'Had an alignment call, EP is ready for interviews'"></textarea>
+                                <button type="submit" class="btn btn-primary px-3">
+                                    <i class="bi bi-send"></i>
+                                </button>
+                            </div>
+                        </form>
 
-        <div class="card shadow-sm">
-            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-paperclip me-2"></i>Attachments</h6></div>
-            <div class="card-body">
-                {% for a in attachments %}
-                <div class="d-flex justify-content-between align-items-center small mb-1">
-                    <span>
-                        <span class="badge bg-light text-dark me-1">{{ a.get_label_display }}</span>
-                        <a href="{{ a.file.url }}">{{ a.file.name|slice:"20:"|default:a.file.name }}</a>
-                    </span>
-                    <span class="text-muted" style="font-size:.7rem;">{{ a.uploaded_at|date:"M d" }}</span>
+                        <div class="interaction-list flex-grow-1" style="max-height: 500px; overflow-y: auto;">
+                            {% for i in interactions %}
+                            <div class="p-3 border-start border-primary border-3 bg-light mb-3 rounded-end">
+                                <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                                    <span class="fw-bold small text-primary"><i class="bi bi-person-circle me-1"></i>{{ i.author.name|default:"System" }}</span>
+                                    <span class="text-muted" style="font-size: .7rem;"><i class="bi bi-clock me-1"></i>{{ i.date|date:"M d, H:i" }}</span>
+                                </div>
+                                <p class="mb-0 small">{{ i.note }}</p>
+                            </div>
+                            {% empty %}
+                            <div class="text-center py-5 text-muted">
+                                <i class="bi bi-chat-square-text fs-2 d-block mb-3 opacity-50"></i>
+                                <p>No interactions logged yet.</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
-                {% empty %}
-                <p class="text-muted small text-center mb-0">No attachments.</p>
-                {% endfor %}
+            </div>
+            
+            <div class="col-lg-6">
+                <!-- Stage History -->
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-clock-history me-2"></i>Stage Progression Timeline</h6></div>
+                    <div class="card-body p-0" style="max-height: 350px; overflow-y: auto;">
+                        <ul class="list-group list-group-flush">
+                            {% for h in stage_history %}
+                            <li class="list-group-item p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="stage-badge stage-{{ h.stage }}">{{ h.get_stage_display }}</span>
+                                    <span class="text-muted small">{{ h.changed_at|date:"M d, Y" }}</span>
+                                </div>
+                                {% if h.note %}<p class="mb-1 text-muted small"><i class="bi bi-info-circle me-1"></i>{{ h.note }}</p>{% endif %}
+                                <div class="text-muted" style="font-size: .65rem;">Updated by {{ h.changed_by.name|default:"System" }} at {{ h.changed_at|time:"H:i" }}</div>
+                            </li>
+                            {% empty %}
+                            <li class="list-group-item text-center text-muted p-4 small">No history yet.</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- TL Notes -->
+                {% if is_vp or is_tl %}
+                <div class="card shadow-sm border-0 border-start border-warning border-4">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-bold text-warning-emphasis"><i class="bi bi-journal-text me-2"></i>TL & VP Notes</h6>
+                        <span class="badge bg-warning text-dark">Private</span>
+                    </div>
+                    <div class="card-body bg-warning-subtle">
+                        <form method="post" action="{% url 'ep_update_tl_notes' ep.pk %}">
+                            {% csrf_token %}
+                            <textarea name="tl_notes" class="form-control border-warning" rows="4" placeholder="Confidential notes about EP behavior, risks, or TL instructions...">{{ ep.tl_notes }}</textarea>
+                            <div class="text-end mt-3">
+                                <button type="submit" class="btn btn-sm btn-warning fw-semibold">
+                                    <i class="bi bi-save me-1"></i>Save Secure Notes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>

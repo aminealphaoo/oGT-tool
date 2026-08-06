@@ -16,14 +16,14 @@
 
 <!-- Filter bar -->
 <div class="filter-bar">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" hx-get="{% url 'ir_list' %}" hx-target="#mainContent" hx-select="#mainContent" hx-push-url="true" hx-trigger="submit, change">
         <div class="col-md-3">
             <label class="form-label small fw-semibold">Search</label>
-            <input type="text" name="q" class="form-control form-control-sm" placeholder="Entity, country, contact..." value="{{ search }}">
+            <input type="text" name="q" class="form-control form-control-sm" placeholder="Entity, country, contact..." value="{{ search }}" hx-trigger="keyup changed delay:300ms" hx-get="{% url 'ir_list' %}" hx-target="#mainContent" hx-select="#mainContent" hx-push-url="true">
         </div>
         <div class="col-md-2">
             <label class="form-label small fw-semibold">Country</label>
-            <input type="text" name="country" class="form-control form-control-sm" placeholder="Filter country..." value="{{ current_country }}">
+            <input type="text" name="country" class="form-control form-control-sm" placeholder="Filter country..." value="{{ current_country }}" hx-trigger="keyup changed delay:300ms" hx-get="{% url 'ir_list' %}" hx-target="#mainContent" hx-select="#mainContent" hx-push-url="true">
         </div>
         <div class="col-md-2">
             <label class="form-label small fw-semibold">Open Opps</label>

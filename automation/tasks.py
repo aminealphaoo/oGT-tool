@@ -1,21 +1,14 @@
 """
 Background tasks — Phase 2+.
+Celery worker calls django.setup() via aiesec_tool/celery.py.
+Do NOT call django.setup() here — it causes double-init when imported by Django.
 """
-import os
 from datetime import timedelta
 
-import django
 from celery import shared_task
 from django.core.mail import send_mail
 from django.utils import timezone
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "aiesec_tool.settings")
-django.setup()
-
-from core.models import SiteConfig
-from members.models import Member
-from ops.models import EP, Interaction
-from partners.models import IR
 
 
 @shared_task
@@ -27,11 +20,14 @@ def sync_expa_eps(sync_log_id=None):
     import json
     from urllib.request import Request, urlopen
 
+    from core.models import SiteConfig, SyncLog
+    from ops.models import EP
+
     config = SiteConfig.get()
     token = config.expa_access_token or "5zPLES-3w6pq82iPrXgojR3JoV99Qnx6kogE-yJE0EY"
     api_url = f"https://api.aiesec.org/graphql?access_token={token}"
 
-    from core.models import SyncLog
+
     if sync_log_id:
         try:
             sync_log = SyncLog.objects.get(pk=sync_log_id)
@@ -88,7 +84,17 @@ def sync_expa_eps(sync_log_id=None):
             resp = urlopen(req, timeout=30)
             result = json.loads(resp.read())
 
-            applications = result.get("data", {}).get("allOpportunityApplication", {})
+            if not result or not isinstance(result, dict) or "errors" in result:
+                break
+
+            data_dict = result.get("data")
+            if not data_dict or not isinstance(data_dict, dict):
+                break
+
+            applications = data_dict.get("allOpportunityApplication")
+            if not applications or not isinstance(applications, dict):
+                break
+
             data = applications.get("data", [])
             paging = applications.get("paging", {})
 
@@ -196,6 +202,10 @@ def check_stale_cases():
     Daily check: find EPs exceeding per-stage idle thresholds.
     Uses stage-loop queries instead of per-EP loop — 9 queries max.
     """
+    from core.models import SiteConfig
+    from members.models import Member
+    from ops.models import EP, Interaction
+
     config = SiteConfig.get()
     now = timezone.now()
     stale_eps = []
@@ -253,6 +263,7 @@ def check_stale_cases():
 def send_stage_email(log_id: int):
     """Render and actually send a pending EmailLog via Django's email backend."""
     from automation.models import EmailLog
+    from ops.models import Interaction
 
     try:
         log = EmailLog.objects.select_related("ep", "template").get(pk=log_id)
@@ -302,6 +313,11 @@ def send_weekly_digest():
     Weekly digest: aggregates stats for WhatsApp / EB meeting.
     Returns a dict with all key metrics.
     """
+    from core.models import SiteConfig
+    from members.models import Member
+    from ops.models import EP, Interaction
+    from partners.models import IR
+
     now = timezone.now()
     week_ago = now - timedelta(days=7)
 
