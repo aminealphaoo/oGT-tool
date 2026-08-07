@@ -24,9 +24,9 @@ STAGE_ORDER = [
 
 def dashboard(request):
     """
-    Role-scoped dashboard with admin-controlled stats.
-    All counters come from DashboardStats (set by admin in /admin).
-    Date filters are removed — the admin controls what's displayed.
+    Role-scoped dashboard.
+    All stats are calculated LIVE from the database (EPs, IRs).
+    Admin can override any value via inline edit — overrides take priority.
     """
     member = request.current_member
     config = SiteConfig.get()
@@ -35,40 +35,50 @@ def dashboard(request):
     eps = member.get_visible_eps()
     irs = member.get_visible_irs()
 
-    # ── Admin-controlled stats (fallback to empty if table doesn't exist) ──
+    # ── Load overrides (if any) ──
     from core.models import DashboardStats
     try:
-        stats = DashboardStats.for_config(config)
+        overrides = DashboardStats.for_config(config)
     except Exception:
-        # Table doesn't exist yet — use empty placeholder
-        class _FallbackStats:
-            funnel_counts = [0, 0, 0, 0, 0, 0, 0]
-            total_eps = 0
-            stage_realized = 0
-            problem_cases = 0
-            stale_cases = 0
-            ir_partners = 0
-            open_opps = 0
-            interactions_period = 0
-            realized_last_30 = 0
-            pipeline_value = 0
-            @property
-            def expa_stats(self):
-                return {"applied": 0, "accepted": 0, "approved": 0, "realized": 0, "finished": 0}
-        stats = _FallbackStats()
+        overrides = None
+
+    def ov(field_name, live_value):
+        """Return override value if set (non-zero), else live value."""
+        if overrides is None:
+            return live_value
+        override_val = getattr(overrides, field_name, 0)
+        return override_val if override_val != 0 else live_value
 
     stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
 
-    # ── Live data (not admin-controlled, always accurate) ──
-    last_sync = SyncLog.objects.filter(status="success").order_by("-started_at").first()
-    recent_interactions = (
-        Interaction.objects.filter(ep__in=eps)
-        .select_related("ep", "author")
-        .order_by("-date")[:10]
-    )
-    recent_eps = eps.order_by("-last_activity_at")[:5]
+    # ── Funnel: count EPs by current_stage ──
+    funnel_counts = []
+    for stage in STAGE_ORDER:
+        funnel_counts.append(eps.filter(current_stage=stage).count())
 
-    # ── Pipeline forecast (calculated live) ──
+    # ── Totals ──
+    total_eps_live = eps.count()
+    total_realized_live = eps.filter(current_stage="realized").count()
+    problem_cases_live = eps.exclude(problem_flag="none").count()
+    stale_now = timezone.now()
+    stale_cases_live = sum(1 for ep in eps.only("pk", "current_stage", "last_activity_at")
+                           if (stale_now - ep.last_activity_at).days > config.get_threshold(ep.current_stage))
+    ir_partners_live = irs.count()
+
+    # ── EXPA stats ──
+    expa_stats_live = {
+        "applied": eps.filter(expa_status__in=["applied", "in_progress"]).count(),
+        "accepted": eps.filter(expa_status__in=["accepted_by_host", "accepted"]).count(),
+        "approved": eps.filter(expa_status__in=["approved_by_home", "approved_by_host", "approved"]).count(),
+        "realized": eps.filter(expa_status="realized").count(),
+        "finished": eps.filter(expa_status__in=["finished", "completed"]).count(),
+    }
+
+    # ── Pipeline / forecast ──
+    pipeline_stages = ["matched_with_opp", "applied", "accepted", "approved",
+                       "all_papers_done", "not_all_papers_done", "do_papers"]
+    pipeline_live = eps.filter(current_stage__in=pipeline_stages).count()
+
     thirty_days_ago = timezone.now() - timedelta(days=30)
     realized_last_30_live = eps.filter(
         current_stage="realized",
@@ -80,52 +90,87 @@ def dashboard(request):
     remaining_days = max(0, (term_end - timezone.now()).days)
     forecast_realized = round(daily_rate * remaining_days)
 
-    # Pipeline value: EPs in non-terminal stages
-    pipeline_live = eps.filter(
-        current_stage__in=["matched_with_opp", "applied", "accepted", "approved",
-                           "all_papers_done", "not_all_papers_done", "do_papers"]
-    ).count()
+    interactions_live = Interaction.objects.filter(ep__in=eps).count()
+
+    # ── Apply overrides ──
+    total_eps_val = ov("total_eps", total_eps_live)
+    stage_realized_val = ov("stage_realized", total_realized_live)
+    problem_cases_val = ov("problem_cases", problem_cases_live)
+    stale_cases_val = ov("stale_cases", stale_cases_live)
+    ir_partners_val = ov("ir_partners", ir_partners_live)
+    pipeline_val = ov("pipeline_value", pipeline_live)
+    realized_30_val = ov("realized_last_30", realized_last_30_live)
+    interactions_val = ov("interactions_period", interactions_live)
+
+    expa_stats = {
+        "applied": ov("expa_applied", expa_stats_live["applied"]),
+        "accepted": ov("expa_accepted", expa_stats_live["accepted"]),
+        "approved": ov("expa_approved", expa_stats_live["approved"]),
+        "realized": ov("expa_realized", expa_stats_live["realized"]),
+        "finished": ov("expa_finished", expa_stats_live["finished"]),
+    }
+
+    # Override funnel stages
+    for i, stage in enumerate(STAGE_ORDER):
+        funnel_counts[i] = ov("stage_" + stage, funnel_counts[i])
+
+    # ── Live data ──
+    last_sync = SyncLog.objects.filter(status="success").order_by("-started_at").first()
+    recent_interactions = (
+        Interaction.objects.filter(ep__in=eps)
+        .select_related("ep", "author")
+        .order_by("-date")[:10]
+    )
+    recent_eps = eps.order_by("-last_activity_at")[:5]
+
+    # ── GT / GTe funnels ──
+    gt_eps = eps.filter(track="GT")
+    gte_eps = eps.filter(track="GTe")
+    gt_funnel = [gt_eps.filter(current_stage=s).count() for s in STAGE_ORDER]
+    gte_funnel = [gte_eps.filter(current_stage=s).count() for s in STAGE_ORDER]
 
     context = {
-        # ── Admin check ──
         "is_admin": member.role in ('VP', 'TL', 'admin', 'super_admin'),
         "hide_edit": "" if member.role in ('VP', 'TL', 'admin', 'super_admin') else "d-none",
 
-        # ── Admin-controlled counters (flat for template) ──
+        # ── Stats (live + override) ──
         "stage_labels": stage_labels,
-        "funnel_counts": stats.funnel_counts,
-        "total_eps": stats.total_eps,
-        "total_realized": stats.stage_realized,
-        "stage_realized": stats.stage_realized,
-        "stage_open": stats.stage_open,
-        "stage_matched": stats.stage_matched,
-        "stage_applied": stats.stage_applied,
-        "stage_accepted": stats.stage_accepted,
-        "stage_approved": stats.stage_approved,
-        "stage_papers": stats.stage_papers,
-        "total_problems": stats.problem_cases,
-        "problem_cases": stats.problem_cases,
-        "total_stale": stats.stale_cases,
-        "stale_cases": stats.stale_cases,
-        "total_irs": stats.ir_partners,
-        "ir_partners": stats.ir_partners,
-        "open_opps": stats.open_opps,
-        "expa_stats": stats.expa_stats,
-        "realized_period": stats.stage_realized,
-        "interactions_period": stats.interactions_period,
+        "funnel_counts": funnel_counts,
+        "gt_funnel": gt_funnel,
+        "gte_funnel": gte_funnel,
+        "total_eps": total_eps_val,
+        "stage_realized": stage_realized_val,
+        "total_realized": stage_realized_val,
+        "stage_open": ov("stage_open", funnel_counts[0]),
+        "stage_matched": ov("stage_matched", funnel_counts[1]),
+        "stage_applied": ov("stage_applied", funnel_counts[2]),
+        "stage_accepted": ov("stage_accepted", funnel_counts[3]),
+        "stage_approved": ov("stage_approved", funnel_counts[4]),
+        "stage_papers": ov("stage_papers", funnel_counts[5]),
+        "problem_cases": problem_cases_val,
+        "total_problems": problem_cases_val,
+        "stale_cases": stale_cases_val,
+        "total_stale": stale_cases_val,
+        "ir_partners": ir_partners_val,
+        "total_irs": ir_partners_val,
+        "expa_stats": expa_stats,
+        "realized_period": stage_realized_val,
+        "interactions_period": interactions_val,
+
+        # ── Forecast ──
+        "forecast": {
+            "realized_last_30": realized_30_val,
+            "daily_rate": round(daily_rate, 2),
+            "remaining_days": remaining_days,
+            "forecast_realized": forecast_realized,
+            "projected_total": stage_realized_val + forecast_realized,
+            "pipeline_value": pipeline_val,
+        },
 
         # ── Live data ──
         "recent_interactions": recent_interactions,
         "recent_eps": recent_eps,
         "last_sync": last_sync,
-        "forecast": {
-            "realized_last_30": stats.realized_last_30,
-            "daily_rate": round(daily_rate, 2),
-            "remaining_days": remaining_days,
-            "forecast_realized": forecast_realized,
-            "projected_total": stats.stage_realized + forecast_realized,
-            "pipeline_value": stats.pipeline_value,
-        },
 
         # ── Config ──
         "lc_name": config.lc_name,
@@ -135,6 +180,7 @@ def dashboard(request):
     }
 
     return render(request, "dashboard/index.html", context)
+
 
 
 def leaderboard(request):
