@@ -6,13 +6,13 @@
     <h4 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
     <div>
         {% if is_admin %}
-        <button id="editToggleBtn" class="btn btn-sm btn-outline-warning" onclick="toggleEditMode()">
+        <button id="editToggleBtn" class="btn btn-sm btn-outline-warning">
             <i class="bi bi-pencil-square me-1"></i>Edit Stats
         </button>
-        <button id="saveStatsBtn" class="btn btn-sm btn-success d-none" onclick="saveStats()">
+        <button id="saveStatsBtn" class="btn btn-sm btn-success d-none">
             <i class="bi bi-check-lg me-1"></i>Save
         </button>
-        <button id="cancelEditBtn" class="btn btn-sm btn-outline-secondary d-none" onclick="toggleEditMode()">
+        <button id="cancelEditBtn" class="btn btn-sm btn-outline-secondary d-none">
             Cancel
         </button>
         {% endif %}
@@ -180,6 +180,7 @@
 
 {% block extra_js %}
 <script>
+document.addEventListener('DOMContentLoaded', function() {
 let editMode = false;
 function toggleEditMode() {
     editMode = !editMode;
@@ -204,6 +205,12 @@ function saveStats() {
     }).catch(err=>alert('Save failed: '+err));
 }
 
+// Attach event listeners
+document.getElementById('editToggleBtn').addEventListener('click', toggleEditMode);
+document.getElementById('cancelEditBtn').addEventListener('click', toggleEditMode);
+document.getElementById('saveStatsBtn').addEventListener('click', saveStats);
+
+
 const labels={{ stage_labels|safe }};
 const allFunnel={{ funnel_counts|safe }};
 const gtFunnel={{ gt_funnel|safe }};
@@ -211,6 +218,7 @@ const gteFunnel={{ gte_funnel|safe }};
 const colors=['#e9ecef','#fff3cd','#cff4fc','#d1e7dd','#cfe2ff','#e8daef','#e8daef','#d1f2eb','#30C39E'];
 function mk(id,data){new Chart(document.getElementById(id),{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}},x:{ticks:{font:{size:10}}}}}});}
 mk('funnelChart',allFunnel);mk('gtFunnelChart',gtFunnel);mk('gteFunnelChart',gteFunnel);
+});
 </script>
 <style>.stat-card-clickable{transition:box-shadow .15s}.stat-card-clickable:hover{box-shadow:0 0 0 2px rgba(255,193,7,.4)}.stat-input{font-size:1.1rem;font-weight:700;text-align:center}</style>
 {% endblock %}
