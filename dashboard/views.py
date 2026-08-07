@@ -89,6 +89,7 @@ def dashboard(request):
     context = {
         # ── Admin check ──
         "is_admin": member.role in ('VP', 'TL', 'admin', 'super_admin'),
+        "hide_edit": "" if member.role in ('VP', 'TL', 'admin', 'super_admin') else "d-none",
 
         # ── Admin-controlled counters (flat for template) ──
         "stage_labels": stage_labels,
