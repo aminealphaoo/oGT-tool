@@ -32,9 +32,27 @@ def dashboard(request):
     eps = member.get_visible_eps()
     irs = member.get_visible_irs()
 
-    # ── Admin-controlled stats ──
+    # ── Admin-controlled stats (fallback to empty if table doesn't exist) ──
     from core.models import DashboardStats
-    stats = DashboardStats.for_config(config)
+    try:
+        stats = DashboardStats.for_config(config)
+    except Exception:
+        # Table doesn't exist yet — use empty placeholder
+        class _FallbackStats:
+            funnel_counts = [0, 0, 0, 0, 0, 0, 0]
+            total_eps = 0
+            stage_realized = 0
+            problem_cases = 0
+            stale_cases = 0
+            ir_partners = 0
+            open_opps = 0
+            interactions_period = 0
+            realized_last_30 = 0
+            pipeline_value = 0
+            @property
+            def expa_stats(self):
+                return {"applied": 0, "accepted": 0, "approved": 0, "realized": 0, "finished": 0}
+        stats = _FallbackStats()
 
     stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
 
