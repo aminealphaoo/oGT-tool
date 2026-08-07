@@ -2,7 +2,10 @@ from datetime import timedelta
 from collections import defaultdict
 
 from django.db.models import Avg, Count, F, Q
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.contrib import messages
 from django.utils import timezone
 
 from core.models import SiteConfig, SyncLog
@@ -84,14 +87,27 @@ def dashboard(request):
     ).count()
 
     context = {
-        # ── Admin-controlled counters ──
+        # ── Admin check ──
+        "is_admin": member.role in ('admin', 'super_admin'),
+
+        # ── Admin-controlled counters (flat for template) ──
         "stage_labels": stage_labels,
         "funnel_counts": stats.funnel_counts,
         "total_eps": stats.total_eps,
         "total_realized": stats.stage_realized,
+        "stage_realized": stats.stage_realized,
+        "stage_open": stats.stage_open,
+        "stage_matched": stats.stage_matched,
+        "stage_applied": stats.stage_applied,
+        "stage_accepted": stats.stage_accepted,
+        "stage_approved": stats.stage_approved,
+        "stage_papers": stats.stage_papers,
         "total_problems": stats.problem_cases,
+        "problem_cases": stats.problem_cases,
         "total_stale": stats.stale_cases,
+        "stale_cases": stats.stale_cases,
         "total_irs": stats.ir_partners,
+        "ir_partners": stats.ir_partners,
         "open_opps": stats.open_opps,
         "expa_stats": stats.expa_stats,
         "realized_period": stats.stage_realized,
@@ -474,3 +490,31 @@ def trigger_expa_sync(request):
         "current_member": request.current_member,
     }
     return render(request, "dashboard/automation.html", context)
+
+
+# ── Admin: inline stats update ──
+@require_POST
+def update_stats(request):
+    """Save DashboardStats from the dashboard inline edit form (admin only)."""
+    if not request.current_member or request.current_member.role not in ('admin', 'super_admin'):
+        return JsonResponse({"ok": False, "error": "Permission denied"}, status=403)
+
+    from core.models import DashboardStats
+    config = SiteConfig.get()
+    stats = DashboardStats.for_config(config)
+
+    # Update all fields from POST
+    int_fields = [
+        'total_eps',
+        'expa_applied', 'expa_accepted', 'expa_approved', 'expa_realized', 'expa_finished',
+        'stage_open', 'stage_matched', 'stage_applied', 'stage_accepted', 'stage_approved', 'stage_papers', 'stage_realized',
+        'problem_cases', 'stale_cases', 'pipeline_value', 'realized_last_30',
+        'ir_partners', 'open_opps', 'interactions_period',
+    ]
+    for field in int_fields:
+        val = request.POST.get(field, '')
+        if val.isdigit() or (val.startswith('-') and val[1:].isdigit()):
+            setattr(stats, field, int(val))
+
+    stats.save()
+    return JsonResponse({"ok": True, "updated_at": stats.updated_at.isoformat()})

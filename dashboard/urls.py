@@ -9,4 +9,5 @@ urlpatterns = [
     path("workload/", views.workload, name="workload"),
     path("compare/", views.compare, name="compare"),
     path("expa-sync/", views.trigger_expa_sync, name="trigger_expa_sync"),
+    path("update-stats/", views.update_stats, name="update_stats"),
 ]
