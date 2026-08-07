@@ -88,7 +88,7 @@ def dashboard(request):
 
     context = {
         # ── Admin check ──
-        "is_admin": member.role in ('admin', 'super_admin'),
+        "is_admin": member.role in ('VP', 'TL', 'admin', 'super_admin'),
 
         # ── Admin-controlled counters (flat for template) ──
         "stage_labels": stage_labels,
@@ -496,7 +496,7 @@ def trigger_expa_sync(request):
 @require_POST
 def update_stats(request):
     """Save DashboardStats from the dashboard inline edit form (admin only)."""
-    if not request.current_member or request.current_member.role not in ('admin', 'super_admin'):
+    if not request.current_member or request.current_member.role not in ('VP', 'TL', 'admin', 'super_admin'):
         return JsonResponse({"ok": False, "error": "Permission denied"}, status=403)
 
     from core.models import DashboardStats
