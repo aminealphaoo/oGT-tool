@@ -5,13 +5,13 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
     <div>
-        <button id="editToggleBtn" class="btn btn-sm btn-outline-warning {{ hide_edit|yesno:'d-none,' }}">
+        <button id="editToggleBtn" class="btn btn-sm btn-outline-warning"{% if not is_admin %} style="display:none"{% endif %}>
             <i class="bi bi-pencil-square me-1"></i>Edit Stats
         </button>
-        <button id="saveStatsBtn" class="btn btn-sm btn-success d-none">
+        <button id="saveStatsBtn" class="btn btn-sm btn-success" style="display:none">
             <i class="bi bi-check-lg me-1"></i>Save
         </button>
-        <button id="cancelEditBtn" class="btn btn-sm btn-outline-secondary d-none">
+        <button id="cancelEditBtn" class="btn btn-sm btn-outline-secondary" style="display:none">
             Cancel
         </button>
         <span class="text-muted small ms-3">Welcome, {{ current_member.name }}</span>
@@ -23,41 +23,87 @@
 
 <!-- Top KPI cards -->
 <div class="row g-2 mb-3">
-    <div class="col-md-2"><div class="card card-stat stat-card-blue py-2 px-3 stat-card-clickable" data-field="total_eps"><div class="stat-number stat-display" id="disp_total_eps">{{ total_eps }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_total_eps" name="total_eps" value="{{ total_eps }}" min="0"><div class="stat-label">Total EPs</div></div></div>
-    <div class="col-md-2"><div class="card card-stat stat-card-green py-2 px-3 stat-card-clickable" data-field="stage_realized"><div class="stat-number stat-display" id="disp_stage_realized">{{ stage_realized }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_stage_realized" name="stage_realized" value="{{ stage_realized }}" min="0"><div class="stat-label">Realized</div></div></div>
-    <div class="col-md-2"><div class="card card-stat stat-card-orange py-2 px-3 stat-card-clickable" data-field="problem_cases"><div class="stat-number stat-display" id="disp_problem_cases">{{ problem_cases }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_problem_cases" name="problem_cases" value="{{ problem_cases }}" min="0"><div class="stat-label">Problem Cases</div></div></div>
-    <div class="col-md-2"><div class="card card-stat stat-card-yellow py-2 px-3 stat-card-clickable" data-field="stale_cases"><div class="stat-number stat-display" id="disp_stale_cases">{{ stale_cases }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_stale_cases" name="stale_cases" value="{{ stale_cases }}" min="0"><div class="stat-label">Stale Cases</div></div></div>
-    <div class="col-md-2"><div class="card card-stat stat-card-cyan py-2 px-3 stat-card-clickable" data-field="ir_partners"><div class="stat-number stat-display" id="disp_ir_partners">{{ ir_partners }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_ir_partners" name="ir_partners" value="{{ ir_partners }}" min="0"><div class="stat-label">IR Partners</div></div></div>
-    <div class="col-md-2"><div class="card card-stat stat-card-teal py-2 px-3 stat-card-clickable" data-field="open_opps"><div class="stat-number stat-display" id="disp_open_opps">{{ open_opps }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_open_opps" name="open_opps" value="{{ open_opps }}" min="0"><div class="stat-label">Open Opps</div></div></div>
+    <div class="col-md-2"><div class="card card-stat stat-card-blue py-2 px-3 stat-card-clickable" data-field="total_eps"><div class="stat-display" id="disp_total_eps">{{ total_eps }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_total_eps" name="total_eps" value="{{ total_eps }}" min="0"><div class="stat-label">Total EPs</div></div></div>
+    <div class="col-md-2"><div class="card card-stat stat-card-green py-2 px-3 stat-card-clickable" data-field="stage_realized"><div class="stat-display" id="disp_stage_realized">{{ stage_realized }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_stage_realized" name="stage_realized" value="{{ stage_realized }}" min="0"><div class="stat-label">Realized</div></div></div>
+    <div class="col-md-2"><div class="card card-stat stat-card-orange py-2 px-3 stat-card-clickable" data-field="problem_cases"><div class="stat-display" id="disp_problem_cases">{{ problem_cases }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_problem_cases" name="problem_cases" value="{{ problem_cases }}" min="0"><div class="stat-label">Problem Cases</div></div></div>
+    <div class="col-md-2"><div class="card card-stat stat-card-yellow py-2 px-3 stat-card-clickable" data-field="stale_cases"><div class="stat-display" id="disp_stale_cases">{{ stale_cases }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_stale_cases" name="stale_cases" value="{{ stale_cases }}" min="0"><div class="stat-label">Stale Cases</div></div></div>
+    <div class="col-md-2"><div class="card card-stat stat-card-cyan py-2 px-3 stat-card-clickable" data-field="ir_partners"><div class="stat-display" id="disp_ir_partners">{{ ir_partners }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_ir_partners" name="ir_partners" value="{{ ir_partners }}" min="0"><div class="stat-label">IR Partners</div></div></div>
+    <div class="col-md-2"><div class="card card-stat stat-card-teal py-2 px-3 stat-card-clickable" data-field="open_opps"><div class="stat-display" id="disp_open_opps">{{ open_opps }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_open_opps" name="open_opps" value="{{ open_opps }}" min="0"><div class="stat-label">Open Opps</div></div></div>
 </div>
 
 <!-- EXPA Status -->
 <div class="row g-2 mb-3">
-    <div class="col"><div class="card card-stat stat-card-blue py-2 px-3 stat-card-clickable" data-field="expa_applied"><div class="stat-number stat-display" id="disp_expa_applied">{{ expa_stats.applied }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_expa_applied" name="expa_applied" value="{{ expa_stats.applied }}" min="0"><div class="stat-label">EXPA Applied</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-cyan py-2 px-3 stat-card-clickable" data-field="expa_accepted"><div class="stat-number stat-display" id="disp_expa_accepted">{{ expa_stats.accepted }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_expa_accepted" name="expa_accepted" value="{{ expa_stats.accepted }}" min="0"><div class="stat-label">EXPA Accepted</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-purple py-2 px-3 stat-card-clickable" data-field="expa_approved"><div class="stat-number stat-display" id="disp_expa_approved">{{ expa_stats.approved }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_expa_approved" name="expa_approved" value="{{ expa_stats.approved }}" min="0"><div class="stat-label">EXPA Approved</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-green py-2 px-3 stat-card-clickable" data-field="expa_realized"><div class="stat-number stat-display" id="disp_expa_realized">{{ expa_stats.realized }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_expa_realized" name="expa_realized" value="{{ expa_stats.realized }}" min="0"><div class="stat-label">EXPA Realized</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-teal py-2 px-3 stat-card-clickable" data-field="expa_finished"><div class="stat-number stat-display" id="disp_expa_finished">{{ expa_stats.finished }}</div><input type="number" class="form-control form-control-sm stat-input d-none" id="inp_expa_finished" name="expa_finished" value="{{ expa_stats.finished }}" min="0"><div class="stat-label">EXPA Finished</div></div></div>
+    <div class="col"><div class="card card-stat stat-card-blue py-2 px-3 stat-card-clickable" data-field="expa_applied"><div class="stat-display" id="disp_expa_applied">{{ expa_stats.applied }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_applied" name="expa_applied" value="{{ expa_stats.applied }}" min="0"><div class="stat-label">EXPA Applied</div></div></div>
+    <div class="col"><div class="card card-stat stat-card-cyan py-2 px-3 stat-card-clickable" data-field="expa_accepted"><div class="stat-display" id="disp_expa_accepted">{{ expa_stats.accepted }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_accepted" name="expa_accepted" value="{{ expa_stats.accepted }}" min="0"><div class="stat-label">EXPA Accepted</div></div></div>
+    <div class="col"><div class="card card-stat stat-card-purple py-2 px-3 stat-card-clickable" data-field="expa_approved"><div class="stat-display" id="disp_expa_approved">{{ expa_stats.approved }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_approved" name="expa_approved" value="{{ expa_stats.approved }}" min="0"><div class="stat-label">EXPA Approved</div></div></div>
+    <div class="col"><div class="card card-stat stat-card-green py-2 px-3 stat-card-clickable" data-field="expa_realized"><div class="stat-display" id="disp_expa_realized">{{ expa_stats.realized }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_realized" name="expa_realized" value="{{ expa_stats.realized }}" min="0"><div class="stat-label">EXPA Realized</div></div></div>
+    <div class="col"><div class="card card-stat stat-card-teal py-2 px-3 stat-card-clickable" data-field="expa_finished"><div class="stat-display" id="disp_expa_finished">{{ expa_stats.finished }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_finished" name="expa_finished" value="{{ expa_stats.finished }}" min="0"><div class="stat-label">EXPA Finished</div></div></div>
 </div>
 
 <!-- Funnel stages -->
 <div class="row g-2 mb-3"><span class="text-muted small mb-0">Funnel Stages:</span>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_open"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_stage_open">{{ stage_open }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_stage_open" name="stage_open" value="{{ stage_open }}" min="0"><div class="stat-label small">Open</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_matched"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_stage_matched">{{ stage_matched }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_stage_matched" name="stage_matched" value="{{ stage_matched }}" min="0"><div class="stat-label small">Matched</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_applied"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_stage_applied">{{ stage_applied }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_stage_applied" name="stage_applied" value="{{ stage_applied }}" min="0"><div class="stat-label small">Applied</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_accepted"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_stage_accepted">{{ stage_accepted }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_stage_accepted" name="stage_accepted" value="{{ stage_accepted }}" min="0"><div class="stat-label small">Accepted</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_approved"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_stage_approved">{{ stage_approved }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_stage_approved" name="stage_approved" value="{{ stage_approved }}" min="0"><div class="stat-label small">Approved</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_papers"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_stage_papers">{{ stage_papers }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_stage_papers" name="stage_papers" value="{{ stage_papers }}" min="0"><div class="stat-label small">Papers</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_realized"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_stage_realized">{{ stage_realized }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_stage_realized" name="stage_realized" value="{{ stage_realized }}" min="0"><div class="stat-label small">Realized</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_open"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_open">{{ stage_open }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_open" name="stage_open" value="{{ stage_open }}" min="0"><div class="stat-label small">Open</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_matched"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_matched">{{ stage_matched }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_matched" name="stage_matched" value="{{ stage_matched }}" min="0"><div class="stat-label small">Matched</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_applied"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_applied">{{ stage_applied }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_applied" name="stage_applied" value="{{ stage_applied }}" min="0"><div class="stat-label small">Applied</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_accepted"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_accepted">{{ stage_accepted }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_accepted" name="stage_accepted" value="{{ stage_accepted }}" min="0"><div class="stat-label small">Accepted</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_approved"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_approved">{{ stage_approved }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_approved" name="stage_approved" value="{{ stage_approved }}" min="0"><div class="stat-label small">Approved</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_papers"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_papers">{{ stage_papers }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_papers" name="stage_papers" value="{{ stage_papers }}" min="0"><div class="stat-label small">Papers</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_realized"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_realized">{{ stage_realized }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_realized" name="stage_realized" value="{{ stage_realized }}" min="0"><div class="stat-label small">Realized</div></div></div></div>
 </div>
 
 <!-- Extra -->
 <div class="row g-2 mb-3">
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="pipeline_value"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_pipeline_value">{{ forecast.pipeline_value }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_pipeline_value" name="pipeline_value" value="{{ forecast.pipeline_value }}" min="0"><div class="stat-label small">Pipeline</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="realized_last_30"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_realized_last_30">{{ forecast.realized_last_30 }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_realized_last_30" name="realized_last_30" value="{{ forecast.realized_last_30 }}" min="0"><div class="stat-label small">Realized/30d</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="interactions_period"><div class="d-flex align-items-center gap-2"><span class="stat-number stat-display small" id="disp_interactions_period">{{ interactions_period }}</span><input type="number" class="form-control form-control-sm stat-input d-none" style="width:50px;" id="inp_interactions_period" name="interactions_period" value="{{ interactions_period }}" min="0"><div class="stat-label small">Interactions</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="pipeline_value"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_pipeline_value">{{ forecast.pipeline_value }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_pipeline_value" name="pipeline_value" value="{{ forecast.pipeline_value }}" min="0"><div class="stat-label small">Pipeline</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="realized_last_30"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_realized_last_30">{{ forecast.realized_last_30 }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_realized_last_30" name="realized_last_30" value="{{ forecast.realized_last_30 }}" min="0"><div class="stat-label small">Realized/30d</div></div></div></div>
+    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="interactions_period"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_interactions_period">{{ interactions_period }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_interactions_period" name="interactions_period" value="{{ interactions_period }}" min="0"><div class="stat-label small">Interactions</div></div></div></div>
 </div>
 </form>
+
+<script>
+(function() {
+    var eb = document.getElementById('editToggleBtn');
+    var sb = document.getElementById('saveStatsBtn');
+    var cb = document.getElementById('cancelEditBtn');
+    if (!eb || !sb || !cb) return;
+    
+    eb.addEventListener('click', function() {
+        document.querySelectorAll('.stat-display').forEach(function(e){ e.style.display = 'none'; });
+        document.querySelectorAll('.stat-input').forEach(function(e){ e.style.display = ''; });
+        eb.style.display = 'none';
+        sb.style.display = '';
+        cb.style.display = '';
+    });
+    cb.addEventListener('click', function() {
+        document.querySelectorAll('.stat-display').forEach(function(e){ e.style.display = ''; });
+        document.querySelectorAll('.stat-input').forEach(function(e){ e.style.display = 'none'; });
+        eb.style.display = '';
+        sb.style.display = 'none';
+        cb.style.display = 'none';
+    });
+    sb.addEventListener('click', function() {
+        var f = document.getElementById('statsForm');
+        var d = new FormData(f);
+        fetch(f.action, {method:'POST', body:d, headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+            if(res.ok){
+                document.querySelectorAll('.stat-input').forEach(function(inp){
+                    var disp = document.getElementById('disp_'+inp.name);
+                    if(disp) disp.textContent = inp.value;
+                });
+                // trigger cancel
+                document.querySelectorAll('.stat-display').forEach(function(e){ e.style.display = ''; });
+                document.querySelectorAll('.stat-input').forEach(function(e){ e.style.display = 'none'; });
+                eb.style.display = '';
+                sb.style.display = 'none';
+                cb.style.display = 'none';
+                setTimeout(function(){ location.reload(); }, 500);
+            } else alert('Error: ' + (res.error || 'Unknown'));
+        }).catch(function(err){ alert('Save failed: ' + err); });
+    });
+})();
+</script>
+<style>.stat-display{font-size:1.4rem;font-weight:700}.stat-input{font-size:1rem;font-weight:700;text-align:center}.stat-card-clickable{transition:box-shadow .15s}.stat-card-clickable:hover{box-shadow:0 0 0 2px rgba(255,193,7,.4)}</style>
 
 <!-- Sync bar -->
 <div class="row g-2 mb-3 small">
@@ -98,47 +144,6 @@
 
 {% block extra_js %}
 <script>
-(function() {
-    var eb = document.getElementById('editToggleBtn');
-    var sb = document.getElementById('saveStatsBtn');
-    var cb = document.getElementById('cancelEditBtn');
-    if (!eb || !sb || !cb) return;
-
-    var editMode = false;
-    eb.onclick = function() {
-        editMode = true;
-        document.querySelectorAll('.stat-display').forEach(function(e){ e.classList.add('d-none'); });
-        document.querySelectorAll('.stat-input').forEach(function(e){ e.classList.remove('d-none'); });
-        eb.classList.add('d-none');
-        sb.classList.remove('d-none');
-        cb.classList.remove('d-none');
-    };
-    cb.onclick = function() {
-        editMode = false;
-        document.querySelectorAll('.stat-display').forEach(function(e){ e.classList.remove('d-none'); });
-        document.querySelectorAll('.stat-input').forEach(function(e){ e.classList.add('d-none'); });
-        eb.classList.remove('d-none');
-        sb.classList.add('d-none');
-        cb.classList.add('d-none');
-    };
-    sb.onclick = function() {
-        var f = document.getElementById('statsForm');
-        var d = new FormData(f);
-        fetch(f.action, {method:'POST', body:d, headers:{'X-Requested-With':'XMLHttpRequest'}})
-        .then(function(r){ return r.json(); })
-        .then(function(res){
-            if(res.ok){
-                document.querySelectorAll('.stat-input').forEach(function(inp){
-                    var disp = document.getElementById('disp_'+inp.name);
-                    if(disp) disp.textContent = inp.value;
-                });
-                cb.onclick();
-                setTimeout(function(){ location.reload(); }, 500);
-            } else alert('Error: ' + (res.error || 'Unknown'));
-        }).catch(function(err){ alert('Save failed: ' + err); });
-    };
-})();
-
 const labels={{ stage_labels|safe }};
 const allFunnel={{ funnel_counts|safe }};
 const gtFunnel={{ gt_funnel|safe }};
@@ -147,5 +152,4 @@ const colors=['#e9ecef','#fff3cd','#cff4fc','#d1e7dd','#cfe2ff','#e8daef','#e8da
 function mk(id,data){new Chart(document.getElementById(id),{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}},x:{ticks:{font:{size:10}}}}}});}
 mk('funnelChart',allFunnel);mk('gtFunnelChart',gtFunnel);mk('gteFunnelChart',gteFunnel);
 </script>
-<style>.stat-card-clickable{transition:box-shadow .15s}.stat-card-clickable:hover{box-shadow:0 0 0 2px rgba(255,193,7,.4)}.stat-input{font-size:1.1rem;font-weight:700;text-align:center}</style>
 {% endblock %}
