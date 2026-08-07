@@ -7,22 +7,7 @@
     <span class="text-muted small">Welcome, {{ current_member.name }}</span>
 </div>
 
-<!-- Date range filter -->
-<div class="filter-bar mb-3">
-    <form method="get" class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="fw-semibold small me-1">Period:</span>
-        <a href="?preset=all" class="btn btn-sm {% if preset == 'all' or not preset %}btn-primary{% else %}btn-outline-secondary{% endif %}">All Time</a>
-        <a href="?preset=week" class="btn btn-sm {% if preset == 'week' %}btn-primary{% else %}btn-outline-secondary{% endif %}">This Week</a>
-        <a href="?preset=month" class="btn btn-sm {% if preset == 'month' %}btn-primary{% else %}btn-outline-secondary{% endif %}">This Month</a>
-        <a href="?preset=term" class="btn btn-sm {% if preset == 'term' %}btn-primary{% else %}btn-outline-secondary{% endif %}">This Term</a>
-        <span class="text-muted small mx-1">or</span>
-        <input type="date" name="date_from" class="form-control form-control-sm" style="width:140px;" value="{{ date_from }}" onchange="this.form.preset.value=''">
-        <span class="text-muted small">→</span>
-        <input type="date" name="date_to" class="form-control form-control-sm" style="width:140px;" value="{{ date_to }}" onchange="this.form.preset.value=''">
-        <input type="hidden" name="preset" value="{{ preset }}">
-        <button type="submit" class="btn btn-sm btn-outline-secondary">Apply</button>
-    </form>
-</div>
+
 
 <!-- Top stat cards -->
 <div class="row g-2 mb-3">

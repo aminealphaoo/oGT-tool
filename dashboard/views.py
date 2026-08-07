@@ -21,13 +21,9 @@ STAGE_ORDER = [
 
 def dashboard(request):
     """
-    Role-scoped dashboard with funnel stats, problem counts, stale counts.
-
-    Date filter behaviour:
-    - When a date range is selected, the funnel shows the number of EPs that
-      *entered* each stage during that period (via StageHistory.changed_at),
-      plus EPs that were already in that stage at period start and never moved.
-    - Without a date range, it shows the current snapshot (EP.current_stage).
+    Role-scoped dashboard with admin-controlled stats.
+    All counters come from DashboardStats (set by admin in /admin).
+    Date filters are removed — the admin controls what's displayed.
     """
     member = request.current_member
     config = SiteConfig.get()
@@ -36,185 +32,71 @@ def dashboard(request):
     eps = member.get_visible_eps()
     irs = member.get_visible_irs()
 
+    # ── Admin-controlled stats ──
+    from core.models import DashboardStats
+    stats = DashboardStats.for_config(config)
+
     stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
 
-    if date_from:
-        # ── Date-filtered mode: hybrid approach ──
-        # 1. Count StageHistory events in the period (EPs that changed stage)
-        # 2. Fallback: EPs created in period without StageHistory yet → count their current stage
-        # Combined: accurate view of what happened in this date range.
-        
-        # StageHistory-based funnel: EPs that entered each stage in the period
-        funnel_sh = []
-        for s in STAGE_ORDER:
-            sh_qs = StageHistory.objects.filter(
-                ep__in=eps, stage=s,
-                changed_at__date__gte=date_from,
-            )
-            if date_to:
-                sh_qs = sh_qs.filter(changed_at__date__lte=date_to)
-            funnel_sh.append(set(sh_qs.values_list("ep_id", flat=True).distinct()))
-
-        # EPs that had ANY StageHistory event in the period
-        active_sh = StageHistory.objects.filter(
-            ep__in=eps, changed_at__date__gte=date_from,
-        )
-        if date_to:
-            active_sh = active_sh.filter(changed_at__date__lte=date_to)
-        active_ep_ids = set(active_sh.values_list("ep_id", flat=True).distinct())
-
-        # EPs created in period that have NO StageHistory (fresh, untouched)
-        new_no_sh = eps.filter(
-            created_at__date__gte=date_from,
-        ).exclude(pk__in=StageHistory.objects.values_list("ep_id", flat=True).distinct())
-        if date_to:
-            new_no_sh = new_no_sh.filter(created_at__date__lte=date_to)
-        
-        # Merge: StageHistory + created-in-period without history
-        new_no_sh_ids = set(new_no_sh.values_list("pk", flat=True))
-        all_active_ids = active_ep_ids | new_no_sh_ids
-        eps_filtered = eps.filter(pk__in=all_active_ids)
-
-        # Funnel: combine StageHistory counts + snapshot of new EPs without history
-        funnel_counts = []
-        gt_funnel = []
-        gte_funnel = []
-        for i, s in enumerate(STAGE_ORDER):
-            sh_count = len(funnel_sh[i])
-            # Also count new EPs whose current_stage is this stage and have no history
-            snapshot_count = new_no_sh.filter(current_stage=s).count()
-            funnel_counts.append(sh_count + snapshot_count)
-            gt_funnel.append(
-                len([eid for eid in funnel_sh[i] if eid in set(eps.filter(track="GT").values_list("pk", flat=True))]) +
-                new_no_sh.filter(current_stage=s, track="GT").count()
-            )
-            gte_funnel.append(
-                len([eid for eid in funnel_sh[i] if eid in set(eps.filter(track="GTe").values_list("pk", flat=True))]) +
-                new_no_sh.filter(current_stage=s, track="GTe").count()
-            )
-
-        total_eps = eps_filtered.count()
-        total_realized = funnel_counts[STAGE_ORDER.index("realized")]
-        total_problems = eps_filtered.exclude(problem_flag="none").count()
-
-        # EXPA status breakdowns (snapshot of filtered EPs)
-        try:
-            expa_stats = {
-                "applied": eps_filtered.filter(expa_status__in=["applied", "in_progress"]).count(),
-                "accepted": eps_filtered.filter(expa_status__in=["accepted_by_host", "accepted"]).count(),
-                "approved": eps_filtered.filter(expa_status__in=["approved_by_home", "approved_by_host", "approved"]).count(),
-                "realized": eps_filtered.filter(expa_status="realized").count(),
-                "finished": eps_filtered.filter(expa_status__in=["finished", "completed"]).count(),
-            }
-        except Exception:
-            expa_stats = {"applied": 0, "accepted": 0, "approved": 0, "realized": 0, "finished": 0}
-
-    else:
-        # ── All-time mode: current snapshot ──
-        funnel_counts = [eps.filter(current_stage=s).count() for s in STAGE_ORDER]
-        gt_funnel = [eps.filter(current_stage=s, track="GT").count() for s in STAGE_ORDER]
-        gte_funnel = [eps.filter(current_stage=s, track="GTe").count() for s in STAGE_ORDER]
-        total_eps = eps.count()
-        total_realized = eps.filter(current_stage="realized").count()
-        total_problems = eps.exclude(problem_flag="none").count()
-
-        # EXPA status breakdowns (current snapshot)
-        try:
-            expa_stats = {
-                "applied": eps.filter(expa_status__in=["applied", "in_progress"]).count(),
-                "accepted": eps.filter(expa_status__in=["accepted_by_host", "accepted"]).count(),
-                "approved": eps.filter(expa_status__in=["approved_by_home", "approved_by_host", "approved"]).count(),
-                "realized": eps.filter(expa_status="realized").count(),
-                "finished": eps.filter(expa_status__in=["finished", "completed"]).count(),
-            }
-        except Exception:
-            expa_stats = {"applied": 0, "accepted": 0, "approved": 0, "realized": 0, "finished": 0}
-
-    # Stale computation — always uses all-time
-    stale_ep_ids = set()
-    for ep in eps.only("pk", "current_stage", "last_activity_at"):
-        if (timezone.now() - ep.last_activity_at).days > config.get_threshold(ep.current_stage):
-            stale_ep_ids.add(ep.pk)
-    total_stale = len(stale_ep_ids)
-
-    # IR stats
-    total_irs = irs.count()
-    open_opps = sum(ir.open_opportunities_count for ir in irs)
+    # ── Live data (not admin-controlled, always accurate) ──
     last_sync = SyncLog.objects.filter(status="success").order_by("-started_at").first()
+    recent_interactions = (
+        Interaction.objects.filter(ep__in=eps)
+        .select_related("ep", "author")
+        .order_by("-date")[:10]
+    )
+    recent_eps = eps.order_by("-last_activity_at")[:5]
 
-    # Recent activity
-    # Interactions: always filter by date range
-    interactions_qs = Interaction.objects.filter(ep__in=eps)
-    if date_from:
-        interactions_qs = interactions_qs.filter(date__date__gte=date_from)
-        if date_to:
-            interactions_qs = interactions_qs.filter(date__date__lte=date_to)
-
-    recent_interactions = interactions_qs.select_related("ep", "author").order_by("-date")[:10]
-
-    if date_from:
-        recent_eps = eps_filtered.order_by("-created_at")[:5]
-    else:
-        recent_eps = eps.order_by("-last_activity_at")[:5]
-
-    if date_from:
-        realized_period = eps_filtered.filter(current_stage="realized").count()
-    else:
-        realized_period = total_realized
-    interactions_period = interactions_qs.count()
-    new_eps_period = eps_filtered.count() if date_from else eps.count()
-
-    context = {
-        "stage_labels": stage_labels,
-        "funnel_counts": funnel_counts,
-        "gt_funnel": gt_funnel,
-        "gte_funnel": gte_funnel,
-        "total_eps": total_eps,
-        "total_realized": total_realized,
-        "total_problems": total_problems,
-        "total_stale": total_stale,
-        "total_irs": total_irs,
-        "open_opps": open_opps,
-        "recent_interactions": recent_interactions,
-        "recent_eps": recent_eps,
-        "realized_period": realized_period,
-        "interactions_period": interactions_period,
-        "new_eps_period": new_eps_period,
-        "expa_stats": expa_stats,
-        "lc_name": config.lc_name,
-        "current_term": config.current_term,
-        "last_sync": last_sync,
-        "expa_token_configured": bool(config.expa_access_token),
-        **date_context(date_from, date_to, preset),
-    }
-
-    # Pipeline forecast
+    # ── Pipeline forecast (calculated live) ──
     thirty_days_ago = timezone.now() - timedelta(days=30)
-    realized_last_30 = eps.filter(
+    realized_last_30_live = eps.filter(
         current_stage="realized",
         last_activity_at__gte=thirty_days_ago,
     ).count()
 
-    daily_rate = realized_last_30 / 30 if realized_last_30 > 0 else 0
-    term_start = timezone.datetime(2026, 1, 1, tzinfo=timezone.get_current_timezone())
-    term_end = term_start + timedelta(days=180)
+    daily_rate = realized_last_30_live / 30 if realized_last_30_live > 0 else 0
+    term_end = timezone.now() + timedelta(days=180)
     remaining_days = max(0, (term_end - timezone.now()).days)
     forecast_realized = round(daily_rate * remaining_days)
-    current_realized = eps.filter(current_stage="realized").count()
-    projected_total = current_realized + forecast_realized
 
-    pipeline_value = eps.filter(
+    # Pipeline value: EPs in non-terminal stages
+    pipeline_live = eps.filter(
         current_stage__in=["matched_with_opp", "applied", "accepted", "approved",
                            "all_papers_done", "not_all_papers_done", "do_papers"]
     ).count()
 
-    context["forecast"] = {
-        "realized_last_30": realized_last_30,
-        "daily_rate": round(daily_rate, 2),
-        "remaining_days": remaining_days,
-        "forecast_realized": forecast_realized,
-        "projected_total": projected_total,
-        "pipeline_value": pipeline_value,
+    context = {
+        # ── Admin-controlled counters ──
+        "stage_labels": stage_labels,
+        "funnel_counts": stats.funnel_counts,
+        "total_eps": stats.total_eps,
+        "total_realized": stats.stage_realized,
+        "total_problems": stats.problem_cases,
+        "total_stale": stats.stale_cases,
+        "total_irs": stats.ir_partners,
+        "open_opps": stats.open_opps,
+        "expa_stats": stats.expa_stats,
+        "realized_period": stats.stage_realized,
+        "interactions_period": stats.interactions_period,
+
+        # ── Live data ──
+        "recent_interactions": recent_interactions,
+        "recent_eps": recent_eps,
+        "last_sync": last_sync,
+        "forecast": {
+            "realized_last_30": stats.realized_last_30,
+            "daily_rate": round(daily_rate, 2),
+            "remaining_days": remaining_days,
+            "forecast_realized": forecast_realized,
+            "projected_total": stats.stage_realized + forecast_realized,
+            "pipeline_value": stats.pipeline_value,
+        },
+
+        # ── Config ──
+        "lc_name": config.lc_name,
+        "current_term": config.current_term,
+        "expa_token_configured": bool(config.expa_access_token),
+        **date_context(date_from, date_to, preset),
     }
 
     return render(request, "dashboard/index.html", context)
