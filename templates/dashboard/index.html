@@ -96,13 +96,7 @@
 </script>
 <style>.stat-display{font-size:1.4rem;font-weight:700}.stat-input{font-size:1rem;font-weight:700;text-align:center}.stat-card-clickable{transition:box-shadow .15s}.stat-card-clickable:hover{box-shadow:0 0 0 2px rgba(255,193,7,.4)}</style>
 
-<!-- Sync bar -->
-<div class="row g-2 mb-3 small">
-    <div class="col-auto ms-auto">
-        {% if last_sync %}<span class="text-muted small"><i class="bi bi-cloud-check me-1 text-success"></i>EXPA: {{ last_sync.finished_at|date:"M d, H:i" }} (+{{ last_sync.created_count }})</span>{% endif %}
-        <form method="post" action="{% url 'trigger_expa_sync' %}" style="display:inline;">{% csrf_token %}<button type="submit" class="btn btn-sm btn-outline-primary ms-2"><i class="bi bi-cloud-download me-1"></i>Sync EXPA</button></form>
-    </div>
-</div>
+
 
 <div class="row g-3">
     <div class="col-lg-8">
