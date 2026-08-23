@@ -206,7 +206,7 @@ def leaderboard(request):
 
     if not stats:
         stats = []
-        visible_members = visible_members.prefetch_related('assigned_eps', 'author')
+        visible_members = visible_members.prefetch_related('assigned_eps', 'interactions')
 
         annotated_members = visible_members.annotate(
             total_eps=Count('assigned_eps', filter=Q(assigned_eps__in=eps)),
@@ -214,7 +214,7 @@ def leaderboard(request):
             realized_alltime=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__current_stage="realized")),
             problems_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__problem_flag__in=["fix_ep_problem", "fix_ir_problem"])),
             open_eps_count=Count('assigned_eps', filter=~Q(assigned_eps__current_stage="realized") & Q(assigned_eps__in=eps)),
-            interactions_total=Count('author', filter=Q(author__in=interactions_qs)),
+            interactions_total=Count('interactions', filter=Q(interactions__in=interactions_qs)),
             gt_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__track="GT")),
             gte_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__track="GTe")),
         )
