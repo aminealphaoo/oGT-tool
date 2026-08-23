@@ -316,7 +316,7 @@ class SavedFilter(models.Model):
 # ==================== MARC : Marketing & Communications ====================
 class Campaign(models.Model):
     name = models.CharField(max_length=200)
-    key_area = models.ForeignKey(Team, on_delete=models.CASCADE, limit_choices_to={'key_area': 'MARC'})
+    key_area = models.ForeignKey(Team, on_delete=models.CASCADE)
     start_date = models.DateField()
     end_date = models.DateField()
     channel = models.CharField(max_length=50, choices=[
@@ -395,7 +395,7 @@ class Contract(models.Model):
     signed_date = models.DateField(null=True, blank=True)
     expiry_date = models.DateField(null=True, blank=True)
     created_by = models.ForeignKey(Member, on_delete=models.CASCADE)
-    key_area = models.ForeignKey(Team, on_delete=models.CASCADE, limit_choices_to={'key_area': 'FIN'})
+    key_area = models.ForeignKey(Team, on_delete=models.CASCADE)
 
     def __str__(self):
         return f"{self.get_contract_type_display()} ({self.status})"
@@ -414,7 +414,7 @@ class Payment(models.Model):
     paid_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(Member, on_delete=models.CASCADE)
-    key_area = models.ForeignKey(Team, on_delete=models.CASCADE, limit_choices_to={'key_area': 'FIN'})
+    key_area = models.ForeignKey(Team, on_delete=models.CASCADE)
 
     def __str__(self):
         return f"{self.get_payment_type_display()} - {self.amount} {self.currency} ({self.status})"
@@ -468,7 +468,7 @@ class Prospect(models.Model):
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     converted_to_partner = models.ForeignKey('partners.IR', on_delete=models.SET_NULL, null=True, blank=True)
-    key_area = models.ForeignKey(Team, on_delete=models.CASCADE, limit_choices_to={'key_area': 'BD'})
+    key_area = models.ForeignKey(Team, on_delete=models.CASCADE)
 
     def __str__(self):
         return self.name

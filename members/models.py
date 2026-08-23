@@ -6,11 +6,11 @@ class Team(models.Model):
     """A functional key area/pole within the LC."""
 
     KEY_AREA_CHOICES = [
-        ('OPS', 'Operations & EP Management'),
-        ('IR', 'International Relations'),
-        ('MARC', 'Marketing & Communications'),
-        ('FIN', 'Finance & Legal'),
-        ('BD', 'Business Development'),
+        ('BD', 'BRAND&DATA'),
+        ('GTE', 'Product GTe'),
+        ('GTA', 'Product GTa'),
+        ('IR', 'IR&Partneships'),
+        ('AUD', 'AUDIT&CXP'),
     ]
     name = models.CharField(max_length=100, unique=True)
     key_area = models.CharField(max_length=4, choices=KEY_AREA_CHOICES, unique=True, null=True, blank=True)
@@ -40,13 +40,12 @@ class Member(models.Model):
     """An LC member — identity is session-based, with optional password auth."""
 
     class Role(models.TextChoices):
-        OPS = "OPS", "OPS Member"
-        IR = "IR", "IR Member"
+        MEMBER = "MEM", "Member"
         TL = "TL", "Team Leader"
         VP = "VP", "Vice President"
 
     name = models.CharField(max_length=150)
-    role = models.CharField(max_length=5, choices=Role.choices, default=Role.OPS)
+    role = models.CharField(max_length=5, choices=Role.choices, default=Role.MEMBER)
     team = models.ForeignKey(
         Team,
         on_delete=models.SET_NULL,
@@ -58,6 +57,7 @@ class Member(models.Model):
     email = models.EmailField(blank=True, default="")
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name="member_profile")
     is_active = models.BooleanField(default=True, help_text="Inactive members hidden from picker")
+
     can_cross_area = models.BooleanField(default=False, help_text="VP only - has transversal vision across key areas")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -74,10 +74,11 @@ class Member(models.Model):
         return self.role == self.Role.TL
 
     def is_ops(self):
-        return self.role == self.Role.OPS
+        return self.role == self.Role.MEMBER
 
     def is_ir(self):
-        return self.role == self.Role.IR
+        return self.role == self.Role.MEMBER
+
 
     def can_view_ep(self, ep) -> bool:
         """Check if this member can view a given EP."""
