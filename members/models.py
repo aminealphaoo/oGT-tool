@@ -3,9 +3,18 @@ from django.db import models
 
 
 class Team(models.Model):
-    """A team within the LC (e.g. oGT, iGT, oTE, iTE)."""
+    """A functional key area/pole within the LC."""
 
+    KEY_AREA_CHOICES = [
+        ('OPS', 'Operations & EP Management'),
+        ('IR', 'International Relations'),
+        ('MARC', 'Marketing & Communications'),
+        ('FIN', 'Finance & Legal'),
+        ('BD', 'Business Development'),
+    ]
     name = models.CharField(max_length=100, unique=True)
+    key_area = models.CharField(max_length=4, choices=KEY_AREA_CHOICES, unique=True, null=True, blank=True)
+    description = models.TextField(blank=True)
     tl = models.OneToOneField(
         "Member",
         on_delete=models.SET_NULL,
@@ -20,7 +29,7 @@ class Team(models.Model):
         ordering = ["name"]
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.get_key_area_display()})"
 
     @property
     def member_count(self):
@@ -49,6 +58,7 @@ class Member(models.Model):
     email = models.EmailField(blank=True, default="")
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name="member_profile")
     is_active = models.BooleanField(default=True, help_text="Inactive members hidden from picker")
+    can_cross_area = models.BooleanField(default=False, help_text="VP only - has transversal vision across key areas")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -58,7 +68,7 @@ class Member(models.Model):
         return f"{self.name} ({self.get_role_display()})"
 
     def is_vp(self):
-        return self.role == self.Role.VP
+        return self.role == self.Role.VP or self.can_cross_area
 
     def is_tl(self):
         return self.role == self.Role.TL
@@ -71,17 +81,17 @@ class Member(models.Model):
 
     def can_view_ep(self, ep) -> bool:
         """Check if this member can view a given EP."""
-        if self.role == self.Role.VP:
+        if self.is_vp():
             return True
-        if self.role == self.Role.TL and self.team and ep.assigned_to and ep.assigned_to.team == self.team:
+        if self.is_tl() and self.team and ep.assigned_area == self.team:
             return True
-        if ep.assigned_to == self:
+        if ep.assigned_member == self or ep.assigned_to == self:
             return True
         return False
 
     def can_view_ir(self, ir) -> bool:
         """Check if this member can view a given IR."""
-        if self.role == self.Role.VP:
+        if self.is_vp():
             return True
         if ir.assigned_to == self:
             return True
@@ -89,19 +99,20 @@ class Member(models.Model):
 
     # ── Scoped querysets ──────────────────────────────────────────────
     def get_visible_eps(self):
-        """Return EP queryset scoped to this member's role."""
+        """Return EP queryset scoped to this member's role and key area."""
         from ops.models import EP
 
-        if self.role == self.Role.VP:
+        if self.is_vp():
             return EP.objects.all()
-        if self.role == self.Role.TL and self.team:
-            return EP.objects.filter(assigned_to__team=self.team)
-        return EP.objects.filter(assigned_to=self)
+        if self.is_tl() and self.team:
+            return EP.objects.filter(assigned_area=self.team)
+        return EP.objects.filter(assigned_member=self)
 
     def get_visible_irs(self):
         """Return IR queryset scoped to this member's role."""
         from partners.models import IR
 
-        if self.role == self.Role.VP:
+        if self.is_vp():
             return IR.objects.all()
         return IR.objects.filter(assigned_to=self)
+
