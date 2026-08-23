@@ -11,7 +11,7 @@ from django.utils import timezone
 from core.models import SiteConfig
 from core.utils import parse_date_range, apply_date_filter, date_context
 from members.models import Member, Team
-from ops.models import EP, Interaction, StageHistory, Task, Campaign, Lead, LegalDocument, Payment
+from ops.models import EP, Interaction, StageHistory, Task, Campaign, Lead, LegalDocument, Payment, Contract
 from partners.models import IR
 
 
