@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — {{ lc_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-journal-text me-2 text-primary"></i>Audit Log</h4>
+        <p class="text-muted small mb-0 mt-1">History of all changes to EPs, IRs, opportunities and tasks</p>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 160px;">Timestamp</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Model</th>
+                        <th>Object</th>
+                        <th>IP</th>
+                        <th>Changes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td class="text-muted small">{{ log.timestamp|date:"M d, H:i:s" }}</td>
+                        <td>
+                            <span class="fw-semibold small">{{ log.user.username|default:"—" }}</span>
+                        </td>
+                        <td>
+                            <span class="badge 
+                                {% if log.action == 'CREATE' %}bg-success
+                                {% elif log.action == 'UPDATE' %}bg-primary
+                                {% elif log.action == 'DELETE' %}bg-danger
+                                {% elif log.action == 'MATCH' %}bg-warning text-dark
+                                {% else %}bg-secondary{% endif %}" style="font-size:.65rem;">
+                                {{ log.action }}
+                            </span>
+                        </td>
+                        <td><span class="badge bg-light text-dark border">{{ log.model_name }}</span></td>
+                        <td class="small text-muted">#{{ log.object_id }}</td>
+                        <td class="small text-muted">{{ log.ip_address|default:"—" }}</td>
+                        <td>
+                            {% if log.old_values or log.new_values %}
+                            <button class="btn btn-xs btn-outline-secondary" style="font-size:.65rem; padding:2px 8px;"
+                                data-bs-toggle="collapse" data-bs-target="#log-{{ log.pk }}">
+                                <i class="bi bi-chevron-down"></i> Details
+                            </button>
+                            <div class="collapse mt-2" id="log-{{ log.pk }}">
+                                <div class="row g-2">
+                                    {% if log.old_values %}
+                                    <div class="col-6">
+                                        <div class="p-2 bg-danger-subtle rounded" style="font-size:.7rem;">
+                                            <strong class="text-danger">Before:</strong>
+                                            <pre class="mb-0 mt-1" style="font-size:.65rem; white-space: pre-wrap;">{{ log.old_values|pprint }}</pre>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if log.new_values %}
+                                    <div class="col-6">
+                                        <div class="p-2 bg-success-subtle rounded" style="font-size:.7rem;">
+                                            <strong class="text-success">After:</strong>
+                                            <pre class="mb-0 mt-1" style="font-size:.65rem; white-space: pre-wrap;">{{ log.new_values|pprint }}</pre>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <i class="bi bi-journal-x fs-2 d-block mb-2"></i>
+                            No audit log entries yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

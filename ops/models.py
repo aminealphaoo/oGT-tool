@@ -44,16 +44,21 @@ class EP(models.Model):
     current_stage = models.CharField(
         max_length=30, choices=Stage.choices, default=Stage.OPEN, db_index=True
     )
-    expa_status = models.CharField(
-        max_length=30,
-        blank=True,
-        default="",
-        db_index=True,
-        help_text="Raw EXPA status from the API (open, applied, accepted, approved, realized, finished, completed, rejected, etc.)",
-    )
     problem_flag = models.CharField(
         max_length=20, choices=ProblemFlag.choices, default=ProblemFlag.NONE, db_index=True
     )
+
+    # ── New Profile Fields ────────────────────────────────────────────
+    skills = models.JSONField(default=list, help_text="Liste de compétences: ['Python', 'Marketing', 'Design']")
+    languages = models.JSONField(default=dict, help_text="{'Français': 'C1', 'Anglais': 'B2'}")
+    study_field = models.CharField(max_length=100, blank=True, help_text="Domaine d'études: Informatique, Business, Éducation...")
+    study_level = models.CharField(max_length=50, blank=True, help_text="Bac, Bac+3, Bac+5...")
+    preferred_countries = models.JSONField(default=list, help_text="Liste des pays prioritaires")
+    preferred_domains = models.JSONField(default=list, help_text="['IT', 'Marketing', 'Business', 'Education']")
+    experience_level = models.CharField(max_length=50, blank=True, choices=[('Junior','Junior'),('Intermédiaire','Intermédiaire'),('Senior','Senior')])
+    availability_date = models.DateField(null=True, blank=True, help_text="Date à partir de laquelle l'EP peut partir")
+    duration_preference = models.PositiveIntegerField(null=True, blank=True, help_text="Durée souhaitée en mois")
+    keywords = models.TextField(blank=True, help_text="Mots-clés libres séparés par des virgules")
 
     # ── Assignment ────────────────────────────────────────────────────
     assigned_to = models.ForeignKey(
@@ -76,7 +81,7 @@ class EP(models.Model):
     term = models.CharField(max_length=20, default="2026-S1", help_text="e.g. 2026-S1")
     source = models.CharField(
         max_length=20,
-        choices=[("manual", "Manual"), ("expa_sync", "EXPA Sync")],
+        choices=[("manual", "Manual")],
         default="manual",
         db_index=True,
     )
@@ -92,6 +97,7 @@ class EP(models.Model):
     )
     last_edited_at = models.DateTimeField(auto_now=True)
     is_archived = models.BooleanField(default=False, db_index=True, help_text="Soft-delete — hidden from lists by default")
+
 
     class Meta:
         ordering = ["-last_activity_at"]
@@ -267,3 +273,27 @@ class SavedFilter(models.Model):
 
     def __str__(self):
         return f"{self.member.name}: {self.name}"
+
+
+class Task(models.Model):
+    PRIORITY_CHOICES = [('Basse','Basse'), ('Moyenne','Moyenne'), ('Haute','Haute'), ('Urgente','Urgente')]
+    STATUS_CHOICES = [('À faire','À faire'), ('En cours','En cours'), ('Terminée','Terminée'), ('Annulée','Annulée')]
+
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    due_date = models.DateTimeField(null=True, blank=True)
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='Moyenne')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='À faire')
+    assigned_to = models.ForeignKey('members.Member', on_delete=models.CASCADE)
+    related_ep = models.ForeignKey('ops.EP', on_delete=models.CASCADE, null=True, blank=True)
+    related_partner = models.ForeignKey('partners.IR', on_delete=models.CASCADE, null=True, blank=True)
+    created_by = models.ForeignKey('members.Member', on_delete=models.CASCADE, related_name='created_tasks')
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.status == 'Terminée' and not self.completed_at:
+            from django.utils import timezone
+            self.completed_at = timezone.now()
+        super().save(*args, **kwargs)
+

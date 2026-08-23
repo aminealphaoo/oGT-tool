@@ -1,16 +1,20 @@
+import csv
+import io
 from datetime import timedelta
 
+from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import models as dj_models
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from core.models import SiteConfig
+from core.models import AuditLog, Notification, SiteConfig
 from members.models import Member
 from partners.models import IR, Opportunity
 
-from .forms import AttachmentForm, EPForm, InteractionForm, ProblemFlagForm, StageAdvanceForm
-from .models import EP, Attachment, Interaction, SavedFilter
+from .forms import AttachmentForm, EPForm, InteractionForm, ProblemFlagForm, StageAdvanceForm, TaskForm
+from .models import EP, Attachment, Interaction, SavedFilter, Task
 
 # ── Stage Prerequisites ────────────────────────────────────────────────
 # "hard" = blocks advance, "soft" = warns but allows
@@ -711,111 +715,299 @@ def problem_list(request):
     return render(request, "ops/problems.html", context)
 
 
+import math
+import re
+
 def _score_ep_opp_match(ep, opp):
     """
     Score an EP-opportunity match. Higher = better fit.
-
-    Factors:
-    - Track match: +50 (must match, otherwise 0 total)
-    - IR Tier:     Platinum=40, Gold=30, Silver=20, Bronze=10
-    - Open slots:  +20 if opp.ir has > 1 open opp (capacity), else +5
-    - Rejection:   -1 per % rejection rate of the IR
-    - Response:    +10 if response_time_days < 7, +5 if < 14, else 0
+    11-factor scoring using weights from SiteConfig.
     """
     if opp.track != ep.track:
         return 0
 
-    score = 50  # Base track match
+    config = SiteConfig.get()
+    
+    # 1. TRACK match: base +50
+    score = 50
 
-    # IR Tier bonus
-    tier_scores = {"platinum": 40, "gold": 30, "silver": 20, "bronze": 10}
-    score += tier_scores.get(opp.ir.tier, 10)
+    # 2. COMPÉTENCES (Skills)
+    ep_skills = [s.strip().lower() for s in (ep.skills or []) if s.strip()]
+    opp_skills = [s.strip().lower() for s in (opp.required_skills or []) if s.strip()]
+    w_skills = config.get_weight("skills")
+    if not ep_skills or not opp_skills:
+        score += w_skills / 2  # neutral
+    else:
+        intersection = len(set(ep_skills) & set(opp_skills))
+        max_len = max(len(ep_skills), len(opp_skills))
+        score += w_skills * (intersection / max_len)
 
-    # Slot / capacity bonus
+    # 3. LANGUES (Languages)
+    lang_levels = {'A1': 1, 'A2': 2, 'B1': 3, 'B2': 4, 'C1': 5, 'C2': 6}
+    ep_langs = ep.languages or {}
+    opp_langs = opp.required_languages or {}
+    w_languages = config.get_weight("languages")
+    
+    if not opp_langs:
+        score += w_languages
+    else:
+        valid_count = 0
+        for lang, req_lvl in opp_langs.items():
+            ep_lvl = ep_langs.get(lang)
+            if ep_lvl and lang_levels.get(ep_lvl, 0) >= lang_levels.get(req_lvl, 0):
+                valid_count += 1
+        score += w_languages * (valid_count / len(opp_langs))
+
+    # 4. DOMAINE D'ÉTUDES (Study field)
+    w_study = config.get_weight("study_field")
+    ep_study = (ep.study_field or "").strip().lower()
+    opp_study = (opp.required_study_field or "").strip().lower()
+    if not ep_study and not opp_study:
+        score += 10  # neutral
+    elif ep_study == opp_study and ep_study != "":
+        score += w_study
+    elif ep_study and opp_study:
+        # Partial match
+        ep_words = set(re.findall(r'\w+', ep_study))
+        opp_words = set(re.findall(r'\w+', opp_study))
+        if ep_words & opp_words:
+            score += w_study / 2
+    
+    # 5. PAYS PRÉFÉRÉ (Preferred countries)
+    w_countries = config.get_weight("preferred_countries")
+    pref_countries = [c.strip().lower() for c in (ep.preferred_countries or []) if c.strip()]
+    if opp.ir.country.strip().lower() in pref_countries:
+        score += w_countries
+
+    # 6. MOTS-CLÉS SÉMANTIQUE (Semantic keywords)
+    w_semantic = config.get_weight("semantic")
+    # Stopwords standard
+    stopwords = {
+        'le', 'la', 'les', 'de', 'des', 'un', 'une', 'et', 'en', 'pour', 'qui', 'que',
+        'the', 'and', 'for', 'of', 'in', 'to', 'is', 'a', 'with', 'on', 'at', 'dans', 'par'
+    }
+    
+    ep_text = f"{ep.keywords or ''} {ep.study_field or ''} {' '.join(ep.skills or [])}"
+    opp_text = f"{opp.keywords or ''} {opp.description or ''} {' '.join(opp.required_skills or [])}"
+    
+    ep_tokens = set([t for t in re.findall(r'\w+', ep_text.lower()) if t not in stopwords])
+    opp_tokens = set([t for t in re.findall(r'\w+', opp_text.lower()) if t not in stopwords])
+    
+    if not ep_tokens and not opp_tokens:
+        score += w_semantic / 2
+    else:
+        intersection = len(ep_tokens & opp_tokens)
+        max_tokens = max(len(ep_tokens), len(opp_tokens))
+        if max_tokens > 0:
+            score += w_semantic * (intersection / max_tokens)
+
+    # 7. DURÉE (Duration preference)
+    w_duration = config.get_weight("duration")
+    if ep.duration_preference and opp.duration_months:
+        if abs(ep.duration_preference - opp.duration_months) <= 1:
+            score += w_duration
+
+    # 8. DISPONIBILITÉ (Availability date)
+    w_availability = config.get_weight("availability")
+    if ep.availability_date:
+        days_diff = (ep.availability_date - timezone.now().date()).days
+        if days_diff <= 90:
+            score += w_availability
+        elif days_diff <= 180:
+            score += w_availability / 2
+
+    # 9. IR TIER
+    w_tier = config.get_weight("tier")
+    tier_scores = {"platinum": w_tier, "gold": w_tier * 0.75, "silver": w_tier * 0.5, "bronze": w_tier * 0.25}
+    score += tier_scores.get(opp.ir.tier, w_tier * 0.25)
+
+    # 10. OPEN SLOTS
+    w_open_slots = config.get_weight("open_slots")
     open_count = opp.ir.open_opportunities_count
-    score += 20 if open_count > 1 else 5
+    score += w_open_slots if open_count > 1 else (w_open_slots / 4)
 
-    # Penalize high rejection rate
-    score -= int(opp.ir.rejection_rate)
+    # 11. TAX DE REJET (Rejection rate)
+    w_rejection = config.get_weight("rejection_rate")
+    score += w_rejection * opp.ir.rejection_rate
 
-    # Response time bonus
+    # 12. TEMPS DE RÉPONSE (Response time)
+    w_response = config.get_weight("response_time")
     rt = opp.ir.response_time_days
     if rt is not None:
         if rt < 7:
-            score += 10
+            score += w_response
         elif rt < 14:
-            score += 5
+            score += w_response / 2
 
-    return max(score, 0)
+    return max(int(score), 0)
 
 
 def matching(request):
-    """Intelligent matching: EPs waiting for a match, scored against open IR opportunities."""
+    """Main matching hub — shows EP list + IR partners for the selected track."""
+    track = request.GET.get("track", "GT")
+    ep_id = request.GET.get("ep_id", "")
+
     member = request.current_member
 
-    track = request.GET.get("track", "GT")
-    ep_id = request.GET.get("ep_id", "")  # Optional: focus on a specific EP
+    # EPs waiting to be matched (open stage, no matched opportunity)
+    unmatched_eps = (
+        member.get_visible_eps()
+        .filter(track=track, is_archived=False)
+        .filter(
+            dj_models.Q(matched_opportunity__isnull=True)
+            | dj_models.Q(current_stage="open")
+        )
+        .select_related("assigned_to", "matched_opportunity__ir")
+        .order_by("-last_activity_at")
+    )
 
-    # EPs that need matching (open stage without an opportunity, or at matched_with_opp)
-    matchable_stages = ["open", "matched_with_opp"]
-    unmatched_eps = member.get_visible_eps().filter(
-        current_stage__in=matchable_stages,
-        track=track,
-    ).select_related("assigned_to", "matched_opportunity__ir")
+    # All open opportunities for the quick match dropdown
+    all_open_opps = Opportunity.objects.filter(
+        is_open=True,
+        ir__status__in=["active", "priority"],
+    ).select_related("ir").order_by("ir__entity_name")
 
-    # IRs with open opportunities matching the track
-    irs_with_open = IR.objects.filter(
-        opportunities__is_open=True,
-        opportunities__track=track,
-        status__in=["active", "priority"],
-    ).prefetch_related("opportunities").distinct()
+    # IR overview: partners with open opps
+    ir_with_opps = (
+        IR.objects.filter(
+            status__in=["active", "priority"],
+            opportunities__is_open=True,
+        )
+        .distinct()
+        .prefetch_related("opportunities")
+        .order_by("-status", "entity_name")
+    )
+    ir_data = []
+    for ir in ir_with_opps:
+        open_opps = ir.opportunities.filter(is_open=True)
+        ir_data.append({"ir": ir, "open_opps": open_opps, "opp_count": open_opps.count()})
 
-    # Build all open opps
-    all_open_opps = []
-    for ir in irs_with_open:
-        for opp in ir.opportunities.filter(is_open=True, track=track):
-            all_open_opps.append(opp)
-
-    # If an EP is focused, compute scored suggestions for it
+    # Scored recommendations if an EP is selected
     focused_ep = None
     scored_opps = []
     if ep_id:
         try:
-            focused_ep = unmatched_eps.get(pk=ep_id)
-            for opp in all_open_opps:
-                s = _score_ep_opp_match(focused_ep, opp)
-                if s > 0:
-                    scored_opps.append({"opp": opp, "score": s, "ir": opp.ir})
+            focused_ep = member.get_visible_eps().get(pk=ep_id)
+            opp_pool = Opportunity.objects.filter(
+                is_open=True,
+                ir__status__in=["active", "priority"],
+            ).select_related("ir")
+            for opp in opp_pool:
+                score = _score_ep_opp_match(focused_ep, opp)
+                if score > 0:
+                    scored_opps.append({"opp": opp, "ir": opp.ir, "score": score})
             scored_opps.sort(key=lambda x: x["score"], reverse=True)
+            scored_opps = scored_opps[:20]  # top 20
         except EP.DoesNotExist:
-            pass
-
-    # Build IR data summary for left panel
-    ir_data = []
-    for ir in irs_with_open:
-        open_opps = list(ir.opportunities.filter(is_open=True, track=track))
-        ir_data.append({
-            "ir": ir,
-            "open_opps": open_opps,
-            "opp_count": len(open_opps),
-        })
-    # Sort IRs: priority first, then by tier
-    tier_order = {"platinum": 0, "gold": 1, "silver": 2, "bronze": 3}
-    ir_data.sort(key=lambda x: (x["ir"].status != "priority", tier_order.get(x["ir"].tier, 9)))
+            focused_ep = None
 
     context = {
-        "unmatched_eps": unmatched_eps,
-        "ir_data": ir_data,
-        "all_open_opps": all_open_opps,
-        "tracks": EP.Track.choices,
         "current_track": track,
+        "tracks": EP.Track.choices,
+        "unmatched_eps": unmatched_eps,
         "ep_count": unmatched_eps.count(),
+        "ir_data": ir_data,
         "ir_count": len(ir_data),
+        "all_open_opps": all_open_opps,
         "focused_ep": focused_ep,
         "scored_opps": scored_opps,
         "ep_id": ep_id,
     }
     return render(request, "ops/matching.html", context)
+
+
+def intelligent_match(request, ep_id):
+    """
+    Intelligent matching: EPs waiting for a match, scored against open IR opportunities.
+    Group by Country, sort Country -> Partner -> Opportunity.
+    """
+    ep = get_object_or_404(EP, pk=ep_id)
+    if not request.current_member.can_view_ep(ep):
+        return render(request, "403.html", status=403)
+
+    # Get all active open opportunities
+    open_opps = Opportunity.objects.filter(
+        is_open=True,
+        track=ep.track,
+        ir__status__in=["active", "priority"]
+    ).select_related("ir")
+
+    scored_list = []
+    for opp in open_opps:
+        score = _score_ep_opp_match(ep, opp)
+        if score > 0:
+            scored_list.append({
+                "opp": opp,
+                "score": score,
+                "ir": opp.ir,
+                "country": opp.ir.country
+            })
+
+    # Group by country
+    country_groups = {}
+    for item in scored_list:
+        c = item["country"]
+        if c not in country_groups:
+            country_groups[c] = []
+        country_groups[c].append(item)
+
+    # Calculate country-level score: average * log(count + 1)
+    scored_countries = []
+    for country, items in country_groups.items():
+        avg_score = sum(x["score"] for x in items) / len(items)
+        country_score = avg_score * math.log(len(items) + 1)
+        
+        # Sort items inside country: by score descending
+        items.sort(key=lambda x: x["score"], reverse=True)
+        
+        # Group by partner inside the country
+        partner_groups = {}
+        for x in items:
+            p = x["ir"]
+            if p not in partner_groups:
+                partner_groups[p] = {"ir": p, "max_score": 0, "opps": []}
+            partner_groups[p]["opps"].append(x)
+            if x["score"] > partner_groups[p]["max_score"]:
+                partner_groups[p]["max_score"] = x["score"]
+
+        # Sort partners by max_score descending
+        sorted_partners = list(partner_groups.values())
+        sorted_partners.sort(key=lambda x: x["max_score"], reverse=True)
+
+        scored_countries.append({
+            "country": country,
+            "score": round(country_score, 1),
+            "partners": sorted_partners,
+            "count": len(items)
+        })
+
+    # Sort countries by country score descending
+    scored_countries.sort(key=lambda x: x["score"], reverse=True)
+
+    if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.GET.get("format") == "json":
+        # Return JSON
+        data = []
+        for sc in scored_countries:
+            c_data = {"country": sc["country"], "score": sc["score"], "partners": []}
+            for p in sc["partners"]:
+                p_data = {"partner_name": p["ir"].entity_name, "opps": []}
+                for o in p["opps"]:
+                    p_data["opps"].append({
+                        "id": o["opp"].pk,
+                        "title": o["opp"].title,
+                        "score": o["score"]
+                    })
+                c_data["partners"].append(p_data)
+            data.append(c_data)
+        return JsonResponse({"ep": ep.full_name, "matches": data})
+
+    context = {
+        "ep": ep,
+        "scored_countries": scored_countries,
+        "tracks": EP.Track.choices,
+    }
+    return render(request, "ops/matching.html", context)
+
 
 
 def matching_match(request):
@@ -888,6 +1080,140 @@ def delete_filter(request, filter_id):
     messages.info(request, f"🗑️ Filter '{name}' deleted.")
     return redirect("ep_list")
 
+
+# ── Tasks ────────────────────────────────────────────────────────────
+
+def task_list(request):
+    """Show all tasks visible to the current member."""
+    member = request.current_member
+    is_vp = member.is_vp()
+    is_tl = member.is_tl()
+
+    if is_vp or is_tl:
+        tasks = Task.objects.select_related("assigned_to", "created_by", "related_ep", "related_partner").order_by("-created_at")
+    else:
+        tasks = Task.objects.filter(assigned_to=member).select_related("assigned_to", "created_by", "related_ep", "related_partner").order_by("-created_at")
+
+    # Filters
+    status_f = request.GET.get("status", "")
+    priority_f = request.GET.get("priority", "")
+    if status_f:
+        tasks = tasks.filter(status=status_f)
+    if priority_f:
+        tasks = tasks.filter(priority=priority_f)
+
+    context = {
+        "tasks": tasks,
+        "status_choices": Task.STATUS_CHOICES,
+        "priority_choices": Task.PRIORITY_CHOICES,
+        "current_status": status_f,
+        "current_priority": priority_f,
+        "form": TaskForm(),
+        "members": Member.objects.filter(is_active=True),
+        "eps": EP.objects.filter(is_archived=False).order_by("full_name")[:100],
+    }
+    return render(request, "ops/task_list.html", context)
+
+
+def task_create(request):
+    """Create a new task."""
+    if request.method == "POST":
+        form = TaskForm(request.POST)
+        if form.is_valid():
+            task = form.save(commit=False)
+            task.created_by = request.current_member
+            task.save()
+            messages.success(request, f"✅ Task '{task.title}' created.")
+            return redirect("task_list")
+    return redirect("task_list")
+
+
+def task_update(request, task_id):
+    """Update task status or other fields."""
+    task = get_object_or_404(Task, pk=task_id)
+    member = request.current_member
+
+    # Only assigned member, TL or VP can update
+    if task.assigned_to != member and not member.is_vp() and not member.is_tl():
+        return render(request, "403.html", status=403)
+
+    if request.method == "POST":
+        form = TaskForm(request.POST, instance=task)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"✅ Task '{task.title}' updated.")
+    return redirect("task_list")
+
+
+def task_delete(request, task_id):
+    """Delete a task (VP/TL only)."""
+    task = get_object_or_404(Task, pk=task_id)
+    member = request.current_member
+    if not member.is_vp() and not member.is_tl():
+        return render(request, "403.html", status=403)
+    if request.method == "POST":
+        name = task.title
+        task.delete()
+        messages.info(request, f"🗑️ Task '{name}' deleted.")
+    return redirect("task_list")
+
+
+def task_quick_status(request, task_id):
+    """HTMX/AJAX quick status toggle."""
+    task = get_object_or_404(Task, pk=task_id)
+    member = request.current_member
+    if task.assigned_to != member and not member.is_vp() and not member.is_tl():
+        return JsonResponse({"error": "Forbidden"}, status=403)
+    new_status = request.POST.get("status", task.status)
+    task.status = new_status
+    task.save(update_fields=["status", "completed_at"])
+    return JsonResponse({"status": task.status, "completed_at": str(task.completed_at or "")})
+
+
+# ── Notifications ──────────────────────────────────────────────────────
+
+def notifications_list(request):
+    """JSON or HTML list of notifications for the current user."""
+    user = request.user
+    notifs = Notification.objects.filter(user=user).order_by("-created_at")[:30]
+    unread_count = notifs.filter(is_read=False).count()
+
+    if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.GET.get("format") == "json":
+        data = [{"id": n.pk, "title": n.title, "message": n.message, "link": n.link, "is_read": n.is_read, "created_at": n.created_at.isoformat()} for n in notifs]
+        return JsonResponse({"notifications": data, "unread_count": unread_count})
+
+    context = {"notifications": notifs, "unread_count": unread_count}
+    return render(request, "ops/notifications.html", context)
+
+
+def notification_mark_read(request, notif_id):
+    """Mark one notification as read and redirect to its link."""
+    notif = get_object_or_404(Notification, pk=notif_id, user=request.user)
+    notif.is_read = True
+    notif.save(update_fields=["is_read"])
+    return redirect(notif.link or "/")
+
+
+def notification_mark_all_read(request):
+    """Mark all notifications as read."""
+    Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+    return redirect(request.META.get("HTTP_REFERER", "/"))
+
+
+# ── Audit Log ─────────────────────────────────────────────────────────
+
+def audit_log_view(request):
+    """Audit log viewer for VP/TL."""
+    member = request.current_member
+    if not member.is_vp() and not member.is_tl():
+        return render(request, "403.html", status=403)
+
+    logs = AuditLog.objects.select_related("user").order_by("-timestamp")[:200]
+    context = {"logs": logs}
+    return render(request, "ops/audit_log.html", context)
+
+
+# ── CSV/Excel Import ───────────────────────────────────────────────────
 
 # ── EXPA Sync ─────────────────────────────────────────────────────────
 

@@ -1,5 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
+from django.contrib.auth.models import User
+
 
 
 class SiteConfig(models.Model):
@@ -8,9 +10,10 @@ class SiteConfig(models.Model):
     lc_name = models.CharField(max_length=200, default="AIESEC LC Carthage")
     current_term = models.CharField(max_length=20, default="2026-S1")
     contact_email = models.EmailField(blank=True, default="")
-    expa_access_token = models.CharField(max_length=200, blank=True, default="", help_text="Token from auth.aiesec.org/developers/applications")
-
-    # Stale thresholds (days) — JSON for flexibility
+    matching_weights = models.JSONField(
+        default=dict,
+        help_text='{"skills": 30, "languages": 20, "study_field": 15, "preferred_countries": 25, "semantic": 20, "duration": 10, "availability": 10, "tier": 40, "open_slots": 20, "rejection_rate": -1, "response_time": 10}',
+    )
     stage_idle_thresholds = models.JSONField(
         default=dict,
         help_text='{"open": 14, "matched_with_opp": 7, ...}',
@@ -46,26 +49,36 @@ class SiteConfig(models.Model):
         thresholds = self.stage_idle_thresholds or {}
         return thresholds.get(stage, defaults.get(stage, 14))
 
+    def get_weight(self, key: str) -> int:
+        """Return weight for a matching criterion."""
+        defaults = {
+            "skills": 30,
+            "languages": 20,
+            "study_field": 15,
+            "preferred_countries": 25,
+            "semantic": 20,
+            "duration": 10,
+            "availability": 10,
+            "tier": 40,
+            "open_slots": 20,
+            "rejection_rate": -1,
+            "response_time": 10,
+        }
+        weights = self.matching_weights or {}
+        return weights.get(key, defaults.get(key, 0))
+
 
 class DashboardStats(models.Model):
     """
     Admin-controlled dashboard counters.
     The admin sets these values manually from the admin panel
     and they are displayed in the member dashboard.
-    Each stat tracks a count; the dashboard shows this snapshot.
     """
     config = models.OneToOneField(SiteConfig, on_delete=models.CASCADE, primary_key=True, related_name="dashboard_stats")
     updated_at = models.DateTimeField(auto_now=True, help_text="Last time stats were updated")
 
     # ── Overall ──
     total_eps = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Total EPs")
-
-    # ── EXPA phases ──
-    expa_applied = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="EXPA Applied")
-    expa_accepted = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="EXPA Accepted")
-    expa_approved = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="EXPA Approved")
-    expa_realized = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="EXPA Realized")
-    expa_finished = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="EXPA Finished / Completed")
 
     # ── Internal funnel stages ──
     stage_open = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Stage: Open")
@@ -98,16 +111,6 @@ class DashboardStats(models.Model):
         return obj
 
     @property
-    def expa_stats(self):
-        return {
-            "applied": self.expa_applied,
-            "accepted": self.expa_accepted,
-            "approved": self.expa_approved,
-            "realized": self.expa_realized,
-            "finished": self.expa_finished,
-        }
-
-    @property
     def funnel_counts(self):
         return [
             self.stage_open, self.stage_matched, self.stage_applied,
@@ -116,23 +119,40 @@ class DashboardStats(models.Model):
         ]
 
 
-class SyncLog(models.Model):
-    """Track EXPA sync runs."""
-
-    class SyncStatus(models.TextChoices):
-        RUNNING = "running", "Running"
-        SUCCESS = "success", "Success"
-        FAILED = "failed", "Failed"
-
-    started_at = models.DateTimeField(auto_now_add=True)
-    finished_at = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=10, choices=SyncStatus.choices, default=SyncStatus.RUNNING)
-    created_count = models.IntegerField(default=0)
-    skipped_count = models.IntegerField(default=0)
-    error_message = models.TextField(blank=True, default="")
-
-    class Meta:
-        ordering = ["-started_at"]
+class EmailTemplate(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    subject = models.CharField(max_length=200)
+    body = models.TextField(help_text="Utilisez {{ep.first_name}}, {{partner.name}}, etc.")
+    variables = models.JSONField(default=list, help_text="Liste des variables disponibles")
+    track = models.CharField(max_length=20, choices=[('GT','Global Talent'),('GTe','Global Teacher'),('All','Tous')], default='All')
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"Sync {self.started_at:%Y-%m-%d %H:%M} — {self.get_status_display()} (+{self.created_count})"
+        return self.name
+
+
+class AuditLog(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    action = models.CharField(max_length=50)  # CREATE, UPDATE, DELETE, MATCH
+    model_name = models.CharField(max_length=50)
+    object_id = models.CharField(max_length=100)
+    old_values = models.JSONField(default=dict, blank=True)
+    new_values = models.JSONField(default=dict, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.action} on {self.model_name} ({self.object_id}) at {self.timestamp}"
+
+
+class Notification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    link = models.CharField(max_length=500, blank=True)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Notification for {self.user.username}: {self.title}"
+

@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-9">
         <div class="card shadow-sm">
             <div class="card-header bg-white">
                 <h5 class="mb-0">
@@ -14,8 +14,10 @@
             <div class="card-body">
                 <form method="post">
                     {% csrf_token %}
+
+                    <!-- Section 1: Contact & Personal -->
+                    <h6 class="fw-bold text-primary mb-3 mt-1"><i class="bi bi-person me-2"></i>Contact & Personal</h6>
                     <div class="row g-3">
-                        <!-- Personal -->
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Full Name *</label>
                             {{ form.full_name }}
@@ -29,11 +31,14 @@
                             {{ form.email }}
                         </div>
                         <div class="col-12">
-                            <label class="form-label small fw-semibold">Socials</label>
+                            <label class="form-label small fw-semibold">Socials / WhatsApp</label>
                             {{ form.socials }}
                         </div>
+                    </div>
 
-                        <!-- Academic -->
+                    <!-- Section 2: Academic -->
+                    <h6 class="fw-bold text-primary mb-3 mt-4"><i class="bi bi-mortarboard me-2"></i>Academic</h6>
+                    <div class="row g-3">
                         <div class="col-md-4">
                             <label class="form-label small fw-semibold">University</label>
                             {{ form.university }}
@@ -46,8 +51,11 @@
                             <label class="form-label small fw-semibold">Year of Study</label>
                             {{ form.year_of_study }}
                         </div>
+                    </div>
 
-                        <!-- Pipeline -->
+                    <!-- Section 3: Pipeline -->
+                    <h6 class="fw-bold text-primary mb-3 mt-4"><i class="bi bi-diagram-3 me-2"></i>Pipeline</h6>
+                    <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label small fw-semibold">Track *</label>
                             {{ form.track }}
@@ -64,10 +72,56 @@
                             <label class="form-label small fw-semibold">Term</label>
                             {{ form.term }}
                         </div>
-
                         <div class="col-md-6">
                             <label class="form-label small fw-semibold">Matched Opportunity</label>
                             {{ form.matched_opportunity }}
+                        </div>
+                    </div>
+
+                    <!-- Section 4: Matching Profile -->
+                    <div class="d-flex align-items-center gap-2 mt-4 mb-3">
+                        <h6 class="fw-bold text-primary mb-0"><i class="bi bi-magic me-2"></i>Matching Profile</h6>
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:.65rem;">Used by AI scoring</span>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Skills</label>
+                            {{ form.skills_text }}
+                            <div class="form-text">{{ form.skills_text.help_text }}</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Study Field</label>
+                            {{ form.study_field }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Study Level</label>
+                            {{ form.study_level }}
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Experience Level</label>
+                            {{ form.experience_level }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Languages (JSON)</label>
+                            {{ form.languages_text }}
+                            <div class="form-text">{{ form.languages_text.help_text }}</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold">Preferred Countries</label>
+                            {{ form.preferred_countries_text }}
+                            <div class="form-text">{{ form.preferred_countries_text.help_text }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Available From</label>
+                            {{ form.availability_date }}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Duration Preference (months)</label>
+                            {{ form.duration_preference }}
+                        </div>
+                        <div class="col-8">
+                            <label class="form-label small fw-semibold">Free Keywords</label>
+                            {{ form.keywords }}
                         </div>
                     </div>
 
@@ -95,3 +149,4 @@ document.querySelectorAll('input:not([type="hidden"]), select, textarea').forEac
 });
 </script>
 {% endblock %}
+

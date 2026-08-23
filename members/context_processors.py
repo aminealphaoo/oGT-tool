@@ -17,9 +17,10 @@ def identity(request):
     nav_stale_count = 0
     nav_problem_count = 0
     nav_unassigned_count = 0
+    nav_pending_tasks_count = 0
 
     if member:
-        from ops.models import EP
+        from ops.models import EP, Task
 
         eps = member.get_visible_eps().filter(is_archived=False)
 
@@ -36,6 +37,12 @@ def identity(request):
 
         nav_unassigned_count = eps.filter(assigned_to__isnull=True).count()
 
+        # Pending tasks for this member (À faire + En cours)
+        nav_pending_tasks_count = Task.objects.filter(
+            assigned_to=member,
+            status__in=["À faire", "En cours"],
+        ).count()
+
     return {
         "current_member": member,
         "is_vp": member.is_vp() if member else False,
@@ -46,4 +53,6 @@ def identity(request):
         "nav_stale_count": nav_stale_count,
         "nav_problem_count": nav_problem_count,
         "nav_unassigned_count": nav_unassigned_count,
+        "nav_pending_tasks_count": nav_pending_tasks_count,
+        "now": timezone.now(),
     }

@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}Tasks — {{ lc_name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .task-card {
+        border-left: 4px solid var(--aiesec-blue);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .task-card:hover { transform: translateY(-2px); }
+    .priority-Basse  { border-left-color: #94a3b8; }
+    .priority-Moyenne { border-left-color: var(--aiesec-blue); }
+    .priority-Haute  { border-left-color: var(--aiesec-yellow); }
+    .priority-Urgente { border-left-color: var(--aiesec-orange); }
+
+    .status-badge-À.faire  { background: #f1f5f9; color: #475569; }
+    .task-completed { opacity: 0.65; text-decoration: line-through; }
+
+    #createTaskModal .modal-content { border-radius: 16px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="mb-0 fw-bold"><i class="bi bi-check2-square me-2 text-primary"></i>Tasks</h4>
+        <p class="text-muted small mb-0 mt-1">Manage your action items linked to EPs and partners</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+        <i class="bi bi-plus-lg me-1"></i>New Task
+    </button>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar mb-4 d-flex gap-3 align-items-center flex-wrap">
+    <span class="fw-semibold small text-muted">Status:</span>
+    <a href="?{% if current_priority %}priority={{ current_priority }}&{% endif %}" class="btn btn-sm {% if not current_status %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+    {% for val, label in status_choices %}
+    <a href="?status={{ val }}{% if current_priority %}&priority={{ current_priority }}{% endif %}" class="btn btn-sm {% if current_status == val %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ label }}</a>
+    {% endfor %}
+    <span class="text-muted">|</span>
+    <span class="fw-semibold small text-muted">Priority:</span>
+    <a href="?{% if current_status %}status={{ current_status }}&{% endif %}" class="btn btn-sm {% if not current_priority %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+    {% for val, label in priority_choices %}
+    <a href="?priority={{ val }}{% if current_status %}&status={{ current_status }}{% endif %}" class="btn btn-sm {% if current_priority == val %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ label }}</a>
+    {% endfor %}
+</div>
+
+<!-- Task summary stats -->
+<div class="row g-3 mb-4">
+    {% for val, label in status_choices %}
+    <div class="col-auto">
+        <span class="badge fs-6 px-3 py-2 rounded-3 {% if val == 'Terminée' %}bg-success-subtle text-success border border-success-subtle{% elif val == 'En cours' %}bg-primary-subtle text-primary border border-primary-subtle{% elif val == 'Annulée' %}bg-danger-subtle text-danger border border-danger-subtle{% else %}bg-secondary-subtle text-secondary border border-secondary-subtle{% endif %}">
+            <i class="bi bi-{% if val == 'Terminée' %}check-circle{% elif val == 'En cours' %}play-circle{% elif val == 'Annulée' %}x-circle{% else %}circle{% endif %} me-1"></i>
+            {{ tasks|length }} total
+        </span>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Task list -->
+<div class="row g-3">
+    {% for task in tasks %}
+    <div class="col-12">
+        <div class="card task-card priority-{{ task.priority }} {% if task.status == 'Terminée' %}task-completed{% endif %}">
+            <div class="card-body py-3 px-4">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <!-- Priority badge -->
+                            <span class="badge {% if task.priority == 'Urgente' %}bg-danger{% elif task.priority == 'Haute' %}bg-warning text-dark{% elif task.priority == 'Moyenne' %}bg-primary{% else %}bg-secondary{% endif %}" style="font-size: .65rem;">
+                                {{ task.priority }}
+                            </span>
+                            <h6 class="mb-0 fw-bold">{{ task.title }}</h6>
+                        </div>
+                        {% if task.description %}
+                        <p class="text-muted small mb-1" style="max-width: 600px;">{{ task.description|truncatechars:120 }}</p>
+                        {% endif %}
+                        <div class="d-flex gap-3 align-items-center flex-wrap" style="font-size: .75rem; color: #6c757d;">
+                            <span><i class="bi bi-person me-1"></i>{{ task.assigned_to.name }}</span>
+                            {% if task.due_date %}
+                            <span class="{% if task.due_date < now and task.status != 'Terminée' %}text-danger fw-semibold{% endif %}">
+                                <i class="bi bi-calendar me-1"></i>{{ task.due_date|date:"M d, H:i" }}
+                            </span>
+                            {% endif %}
+                            {% if task.related_ep %}
+                            <a href="{% url 'ep_detail' task.related_ep.pk %}" class="text-decoration-none">
+                                <i class="bi bi-person-badge me-1 text-primary"></i>{{ task.related_ep.full_name }}
+                            </a>
+                            {% endif %}
+                            {% if task.related_partner %}
+                            <span><i class="bi bi-building me-1 text-success"></i>{{ task.related_partner.entity_name }}</span>
+                            {% endif %}
+                            <span class="text-muted">Created by {{ task.created_by.name }} · {{ task.created_at|date:"M d" }}</span>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center ms-3">
+                        <!-- Status selector -->
+                        <form method="post" action="{% url 'task_update' task.pk %}" class="d-flex gap-2 align-items-center">
+                            {% csrf_token %}
+                            <input type="hidden" name="title" value="{{ task.title }}">
+                            <input type="hidden" name="priority" value="{{ task.priority }}">
+                            <input type="hidden" name="assigned_to" value="{{ task.assigned_to.pk }}">
+                            <select name="status" onchange="this.form.submit()" class="form-select form-select-sm" style="font-size: .75rem; min-width: 120px;">
+                                {% for val, label in status_choices %}
+                                <option value="{{ val }}" {% if task.status == val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                        <!-- Edit button -->
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editTaskModal{{ task.pk }}" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <!-- Delete button (VP/TL only) -->
+                        {% if is_vp or is_tl %}
+                        <form method="post" action="{% url 'task_delete' task.pk %}" onsubmit="return confirm('Delete this task?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editTaskModal{{ task.pk }}" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <form method="post" action="{% url 'task_update' task.pk %}">
+                    {% csrf_token %}
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Task</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Title</label>
+                            <input type="text" name="title" class="form-control" value="{{ task.title }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Description</label>
+                            <textarea name="description" class="form-control" rows="3">{{ task.description }}</textarea>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Priority</label>
+                                <select name="priority" class="form-select">
+                                    {% for val, label in priority_choices %}
+                                    <option value="{{ val }}" {% if task.priority == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Status</label>
+                                <select name="status" class="form-select">
+                                    {% for val, label in status_choices %}
+                                    <option value="{{ val }}" {% if task.status == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">Due Date</label>
+                                <input type="datetime-local" name="due_date" class="form-control" value="{{ task.due_date|date:'Y-m-d\TH:i' }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Assigned To</label>
+                                <select name="assigned_to" class="form-select">
+                                    {% for m in members %}
+                                    <option value="{{ m.pk }}" {% if task.assigned_to.pk == m.pk %}selected{% endif %}>{{ m.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Related EP</label>
+                                <select name="related_ep" class="form-select">
+                                    <option value="">— None —</option>
+                                    {% for ep in eps %}
+                                    <option value="{{ ep.pk }}" {% if task.related_ep_id == ep.pk %}selected{% endif %}>{{ ep.full_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-check2-all fs-1 d-block mb-3 text-success"></i>
+            <h5 class="mb-1">No tasks found</h5>
+            <p class="mb-3">Create a task to track action items for EPs or partners.</p>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+                <i class="bi bi-plus-lg me-1"></i>Create First Task
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Create Task Modal -->
+<div class="modal fade" id="createTaskModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{% url 'task_create' %}">
+                {% csrf_token %}
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-plus-square me-2 text-primary"></i>New Task</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control form-control-lg" placeholder="Task title..." required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Description</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="What needs to be done?"></textarea>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Priority</label>
+                            <select name="priority" class="form-select">
+                                {% for val, label in priority_choices %}
+                                <option value="{{ val }}" {% if val == 'Moyenne' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Due Date</label>
+                            <input type="datetime-local" name="due_date" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Assigned To <span class="text-danger">*</span></label>
+                            <select name="assigned_to" class="form-select" required>
+                                <option value="">Choose member...</option>
+                                {% for m in members %}
+                                <option value="{{ m.pk }}">{{ m.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Link to EP</label>
+                            <select name="related_ep" class="form-select">
+                                <option value="">— No EP —</option>
+                                {% for ep in eps %}
+                                <option value="{{ ep.pk }}">{{ ep.full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Status</label>
+                            <select name="status" class="form-select">
+                                {% for val, label in status_choices %}
+                                <option value="{{ val }}" {% if val == 'À faire' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4"><i class="bi bi-plus-lg me-1"></i>Create Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

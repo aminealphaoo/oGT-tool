@@ -8,11 +8,12 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.utils import timezone
 
-from core.models import SiteConfig, SyncLog
+from core.models import SiteConfig
 from core.utils import parse_date_range, apply_date_filter, date_context
 from members.models import Member, Team
 from ops.models import EP, Interaction, StageHistory
 from partners.models import IR
+
 
 
 STAGE_ORDER = [
@@ -65,15 +66,6 @@ def dashboard(request):
                            if (stale_now - ep.last_activity_at).days > config.get_threshold(ep.current_stage))
     ir_partners_live = irs.count()
 
-    # ── EXPA stats ──
-    expa_stats_live = {
-        "applied": eps.filter(expa_status__in=["applied", "in_progress"]).count(),
-        "accepted": eps.filter(expa_status__in=["accepted_by_host", "accepted"]).count(),
-        "approved": eps.filter(expa_status__in=["approved_by_home", "approved_by_host", "approved"]).count(),
-        "realized": eps.filter(expa_status="realized").count(),
-        "finished": eps.filter(expa_status__in=["finished", "completed"]).count(),
-    }
-
     # ── Pipeline / forecast ──
     pipeline_stages = ["matched_with_opp", "applied", "accepted", "approved",
                        "all_papers_done", "not_all_papers_done", "do_papers"]
@@ -102,20 +94,12 @@ def dashboard(request):
     realized_30_val = ov("realized_last_30", realized_last_30_live)
     interactions_val = ov("interactions_period", interactions_live)
 
-    expa_stats = {
-        "applied": ov("expa_applied", expa_stats_live["applied"]),
-        "accepted": ov("expa_accepted", expa_stats_live["accepted"]),
-        "approved": ov("expa_approved", expa_stats_live["approved"]),
-        "realized": ov("expa_realized", expa_stats_live["realized"]),
-        "finished": ov("expa_finished", expa_stats_live["finished"]),
-    }
-
     # Override funnel stages
     for i, stage in enumerate(STAGE_ORDER):
         funnel_counts[i] = ov("stage_" + stage, funnel_counts[i])
 
     # ── Live data ──
-    last_sync = SyncLog.objects.filter(status="success").order_by("-started_at").first()
+
     recent_interactions = (
         Interaction.objects.filter(ep__in=eps)
         .select_related("ep", "author")
@@ -153,7 +137,6 @@ def dashboard(request):
         "total_stale": stale_cases_val,
         "ir_partners": ir_partners_val,
         "total_irs": ir_partners_val,
-        "expa_stats": expa_stats,
         "realized_period": stage_realized_val,
         "interactions_period": interactions_val,
 
@@ -170,12 +153,10 @@ def dashboard(request):
         # ── Live data ──
         "recent_interactions": recent_interactions,
         "recent_eps": recent_eps,
-        "last_sync": last_sync,
 
         # ── Config ──
         "lc_name": config.lc_name,
         "current_term": config.current_term,
-        "expa_token_configured": bool(config.expa_access_token),
         **date_context(date_from, date_to, preset),
     }
 
@@ -494,49 +475,24 @@ def compare(request):
     return render(request, "dashboard/compare.html", context)
 
 
-def trigger_expa_sync(request):
-    """GET: show automation dashboard. POST: trigger background EXPA sync."""
+def automation(request):
+    """GET: show automation dashboard."""
     from django.conf import settings
-    from django.shortcuts import redirect
-    from core.models import SiteConfig, SyncLog
+    from core.models import SiteConfig, EmailTemplate
 
     config = SiteConfig.get()
 
-    if request.method == "POST":
-        from django.contrib import messages
-        try:
-            from automation.tasks import sync_expa_eps
-            sync_expa_eps.delay()
-            messages.success(request, "EXPA sync task dispatched to background worker.")
-        except Exception:
-            import subprocess, sys
-            proc = subprocess.Popen(
-                [sys.executable, "sync_expa_standalone.py"],
-                cwd=str(settings.BASE_DIR),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            )
-            messages.info(
-                request,
-                "Celery unavailable — EXPA sync started as local subprocess (PID {}).".format(proc.pid),
-            )
-        return redirect("trigger_expa_sync")
-
-    sync_logs = SyncLog.objects.all()[:15]
-    from automation.models import EmailTemplate
     email_templates = EmailTemplate.objects.all()
 
     context = {
-        "expa_token_configured": bool(config.expa_access_token),
-        "expa_token": config.expa_access_token or "5zPLES-3w6pq82iPrXgo...",
         "smtp_host": getattr(settings, "EMAIL_HOST", ""),
         "sender_email": getattr(settings, "DEFAULT_FROM_EMAIL", ""),
-        "sync_logs": sync_logs,
         "email_templates": email_templates,
         "lc_name": config.lc_name,
         "current_member": request.current_member,
     }
     return render(request, "dashboard/automation.html", context)
+
 
 
 # ── Admin: inline stats update ──

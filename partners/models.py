@@ -159,7 +159,7 @@ class Opportunity(models.Model):
     ir = models.ForeignKey(IR, on_delete=models.CASCADE, related_name="opportunities")
     title = models.CharField(max_length=200, blank=True, default="")
     type = models.CharField(max_length=20, choices=OppType.choices, default=OppType.OTHER)
-    description = models.TextField(blank=True, default="")
+    description = models.TextField(blank=True, default="", help_text="Description détaillée pour analyse sémantique")
     is_open = models.BooleanField(default=True)
     expires_at = models.DateField(null=True, blank=True)
     track = models.CharField(
@@ -168,7 +168,15 @@ class Opportunity(models.Model):
         default="GT",
         help_text="Which AIESEC track this opportunity aligns with",
     )
+    required_skills = models.JSONField(default=list)
+    required_languages = models.JSONField(default=dict, help_text="{'Anglais': 'B2', 'Allemand': 'A1'}")
+    required_study_field = models.CharField(max_length=100, blank=True)
+    required_study_level = models.CharField(max_length=50, blank=True)
+    experience_level_required = models.CharField(max_length=50, blank=True, choices=[('Junior','Junior'),('Intermédiaire','Intermédiaire'),('Senior','Senior')])
+    duration_months = models.PositiveIntegerField(null=True, blank=True, help_text="Durée du stage en mois")
+    keywords = models.TextField(blank=True, help_text="Mots-clés du poste séparés par des virgules")
     created_at = models.DateTimeField(auto_now_add=True)
+
 
     class Meta:
         ordering = ["-is_open", "-created_at"]

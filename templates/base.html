@@ -250,6 +250,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'task_list' %}active{% endif %}" href="/tasks/">
+                        <i class="bi bi-check2-square"></i><span>Tasks</span>
+                        {% if nav_pending_tasks_count %}<span class="badge bg-primary rounded-pill ms-auto">{{ nav_pending_tasks_count }}</span>{% endif %}
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {% if request.resolver_match.view_name == 'problem_list' %}active{% endif %}" href="/problems/">
                         <i class="bi bi-flag"></i><span>Problems</span>
                         {% if nav_problem_count %}<span class="badge bg-danger rounded-pill ms-auto">{{ nav_problem_count }}</span>{% endif %}
@@ -272,12 +278,37 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.view_name == 'trigger_expa_sync' %}active{% endif %}" href="/expa-sync/">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'trigger_expa_sync' or request.resolver_match.view_name == 'automation' %}active{% endif %}" href="/expa-sync/">
                         <i class="bi bi-cpu"></i><span>Automation</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.view_name == 'audit_log' %}active{% endif %}" href="/audit/">
+                        <i class="bi bi-journal-text"></i><span>Audit Log</span>
                     </a>
                 </li>
                 {% endif %}
             </ul>
+
+            <!-- Notifications bell -->
+            {% if current_member %}
+            <div class="px-2 mt-2">
+                <div class="dropdown">
+                    <button class="btn btn-sm w-100 d-flex align-items-center justify-content-between btn-outline-secondary" id="notifDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        <span><i class="bi bi-bell me-2"></i>Notifications</span>
+                        <span class="badge bg-danger rounded-pill" id="notifBadge" style="display:none;">0</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow" id="notifMenu" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                        <li class="dropdown-header d-flex justify-content-between align-items-center px-3 py-2">
+                            <strong>Notifications</strong>
+                            <a href="/notifications/read-all/" class="text-primary small" style="font-size: .75rem;">Mark all read</a>
+                        </li>
+                        <li id="notifLoading" class="text-center py-3 text-muted small"><i class="bi bi-arrow-clockwise"></i> Loading...</li>
+                        <li id="notifEmpty" class="text-center py-3 text-muted small" style="display:none;"><i class="bi bi-bell-slash"></i> No new notifications</li>
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Settings & Theme at bottom -->
             <div class="pt-3 border-top mt-auto d-flex flex-column gap-2">
@@ -344,5 +375,48 @@
     })();
     </script>
     {% block extra_js %}{% endblock %}
+
+    {% if current_member %}
+    <script>
+    // Load notifications into dropdown
+    (function loadNotifications() {
+        fetch('/notifications/?format=json', {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(r => r.json())
+            .then(data => {
+                var menu = document.getElementById('notifMenu');
+                var badge = document.getElementById('notifBadge');
+                var loading = document.getElementById('notifLoading');
+                var empty = document.getElementById('notifEmpty');
+                if (loading) loading.remove();
+
+                if (data.unread_count > 0) {
+                    badge.textContent = data.unread_count;
+                    badge.style.display = 'inline-block';
+                }
+
+                if (data.notifications && data.notifications.length > 0) {
+                    data.notifications.slice(0, 10).forEach(function(n) {
+                        var li = document.createElement('li');
+                        li.innerHTML = '<a class="dropdown-item py-2 px-3 ' + (n.is_read ? 'text-muted' : 'fw-semibold') + '" href="/notifications/' + n.id + '/read/">' +
+                            '<div class="d-flex justify-content-between align-items-start">' +
+                            '<span style="font-size:.8rem;">' + n.title + '</span>' +
+                            (n.is_read ? '' : '<span class="badge bg-primary rounded-pill ms-2" style="font-size:.55rem;">New</span>') +
+                            '</div>' +
+                            '<div class="text-muted small mt-1" style="font-size:.7rem;">' + n.message.substring(0, 60) + '</div>' +
+                            '</a>';
+                        menu.appendChild(li);
+                    });
+                    if (empty) empty.style.display = 'none';
+                } else {
+                    if (empty) empty.style.display = 'block';
+                }
+            })
+            .catch(function() {
+                var loading = document.getElementById('notifLoading');
+                if (loading) loading.textContent = 'Could not load notifications.';
+            });
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>

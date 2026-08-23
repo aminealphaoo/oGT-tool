@@ -8,6 +8,6 @@ urlpatterns = [
     path("leaderboard/export/", views.leaderboard_export_csv, name="leaderboard_export_csv"),
     path("workload/", views.workload, name="workload"),
     path("compare/", views.compare, name="compare"),
-    path("expa-sync/", views.trigger_expa_sync, name="trigger_expa_sync"),
+    path("expa-sync/", views.automation, name="trigger_expa_sync"),
     path("update-stats/", views.update_stats, name="update_stats"),
 ]
