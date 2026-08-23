@@ -2,139 +2,577 @@
 {% block title %}Dashboard — {{ lc_name }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h4 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
-    <div>
-        <button id="editToggleBtn" class="btn btn-sm btn-outline-warning"{% if not is_admin %} style="display:none"{% endif %}>
-            <i class="bi bi-pencil-square me-1"></i>Edit Stats
-        </button>
-        <button id="saveStatsBtn" class="btn btn-sm btn-success" style="display:none">
-            <i class="bi bi-check-lg me-1"></i>Save
-        </button>
-        <button id="cancelEditBtn" class="btn btn-sm btn-outline-secondary" style="display:none">
-            Cancel
-        </button>
-        <span class="text-muted small ms-3">Welcome, {{ current_member.name }}</span>
-    </div>
-</div>
-
-<form id="statsForm" method="post" action="{% url 'update_stats' %}">
-{% csrf_token %}
-
-<!-- Top KPI cards -->
-<div class="row g-2 mb-3">
-    <div class="col"><div class="card card-stat stat-card-blue py-2 px-3 stat-card-clickable" data-field="total_eps"><div class="stat-display" id="disp_total_eps">{{ total_eps }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_total_eps" name="total_eps" value="{{ total_eps }}" min="0"><div class="stat-label">Total EPs</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-green py-2 px-3 stat-card-clickable" data-field="stage_realized"><div class="stat-display" id="disp_stage_realized">{{ stage_realized }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_stage_realized" name="stage_realized" value="{{ stage_realized }}" min="0"><div class="stat-label">Realized</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-orange py-2 px-3 stat-card-clickable" data-field="problem_cases"><div class="stat-display" id="disp_problem_cases">{{ problem_cases }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_problem_cases" name="problem_cases" value="{{ problem_cases }}" min="0"><div class="stat-label">Problem Cases</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-yellow py-2 px-3 stat-card-clickable" data-field="stale_cases"><div class="stat-display" id="disp_stale_cases">{{ stale_cases }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_stale_cases" name="stale_cases" value="{{ stale_cases }}" min="0"><div class="stat-label">Stale Cases</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-cyan py-2 px-3 stat-card-clickable" data-field="ir_partners"><div class="stat-display" id="disp_ir_partners">{{ ir_partners }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_ir_partners" name="ir_partners" value="{{ ir_partners }}" min="0"><div class="stat-label">IR Partners</div></div></div>
-</div>
-
-<!-- EXPA Status -->
-<div class="row g-2 mb-3">
-    <div class="col"><div class="card card-stat stat-card-blue py-2 px-3 stat-card-clickable" data-field="expa_applied"><div class="stat-display" id="disp_expa_applied">{{ expa_stats.applied }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_applied" name="expa_applied" value="{{ expa_stats.applied }}" min="0"><div class="stat-label">EXPA Applied</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-cyan py-2 px-3 stat-card-clickable" data-field="expa_accepted"><div class="stat-display" id="disp_expa_accepted">{{ expa_stats.accepted }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_accepted" name="expa_accepted" value="{{ expa_stats.accepted }}" min="0"><div class="stat-label">EXPA Accepted</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-purple py-2 px-3 stat-card-clickable" data-field="expa_approved"><div class="stat-display" id="disp_expa_approved">{{ expa_stats.approved }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_approved" name="expa_approved" value="{{ expa_stats.approved }}" min="0"><div class="stat-label">EXPA Approved</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-green py-2 px-3 stat-card-clickable" data-field="expa_realized"><div class="stat-display" id="disp_expa_realized">{{ expa_stats.realized }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_realized" name="expa_realized" value="{{ expa_stats.realized }}" min="0"><div class="stat-label">EXPA Realized</div></div></div>
-    <div class="col"><div class="card card-stat stat-card-teal py-2 px-3 stat-card-clickable" data-field="expa_finished"><div class="stat-display" id="disp_expa_finished">{{ expa_stats.finished }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none" id="inp_expa_finished" name="expa_finished" value="{{ expa_stats.finished }}" min="0"><div class="stat-label">EXPA Finished</div></div></div>
-</div>
-
-<!-- Funnel stages -->
-<div class="row g-2 mb-3"><span class="text-muted small mb-0">Funnel Stages:</span>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_open"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_open">{{ stage_open }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_open" name="stage_open" value="{{ stage_open }}" min="0"><div class="stat-label small">Open</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_matched"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_matched">{{ stage_matched }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_matched" name="stage_matched" value="{{ stage_matched }}" min="0"><div class="stat-label small">Matched</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_applied"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_applied">{{ stage_applied }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_applied" name="stage_applied" value="{{ stage_applied }}" min="0"><div class="stat-label small">Applied</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_accepted"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_accepted">{{ stage_accepted }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_accepted" name="stage_accepted" value="{{ stage_accepted }}" min="0"><div class="stat-label small">Accepted</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_approved"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_approved">{{ stage_approved }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_approved" name="stage_approved" value="{{ stage_approved }}" min="0"><div class="stat-label small">Approved</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_papers"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_papers">{{ stage_papers }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_papers" name="stage_papers" value="{{ stage_papers }}" min="0"><div class="stat-label small">Papers</div></div></div></div>
-    <div class="col"><div class="card card-stat stat-card-outline py-1 px-2 stat-card-clickable" data-field="stage_realized"><div class="d-flex align-items-center gap-2"><div class="stat-display small" id="disp_stage_realized">{{ stage_realized }}</div><input type="number" class="form-control form-control-sm stat-input" style="display:none;width:50px;" id="inp_stage_realized" name="stage_realized" value="{{ stage_realized }}" min="0"><div class="stat-label small">Realized</div></div></div></div>
-</div>
-</form>
-
-<script>
-(function() {
-    var eb = document.getElementById('editToggleBtn');
-    var sb = document.getElementById('saveStatsBtn');
-    var cb = document.getElementById('cancelEditBtn');
-    if (!eb || !sb || !cb) return;
-    
-    eb.addEventListener('click', function() {
-        document.querySelectorAll('.stat-display').forEach(function(e){ e.style.display = 'none'; });
-        document.querySelectorAll('.stat-input').forEach(function(e){ e.style.display = ''; });
-        eb.style.display = 'none';
-        sb.style.display = '';
-        cb.style.display = '';
-    });
-    cb.addEventListener('click', function() {
-        document.querySelectorAll('.stat-display').forEach(function(e){ e.style.display = ''; });
-        document.querySelectorAll('.stat-input').forEach(function(e){ e.style.display = 'none'; });
-        eb.style.display = '';
-        sb.style.display = 'none';
-        cb.style.display = 'none';
-    });
-    sb.addEventListener('click', function() {
-        var f = document.getElementById('statsForm');
-        var d = new FormData(f);
-        fetch(f.action, {method:'POST', body:d, headers:{'X-Requested-With':'XMLHttpRequest'}})
-        .then(function(r){ return r.json(); })
-        .then(function(res){
-            if(res.ok){
-                document.querySelectorAll('.stat-input').forEach(function(inp){
-                    var disp = document.getElementById('disp_'+inp.name);
-                    if(disp) disp.textContent = inp.value;
-                });
-                document.querySelectorAll('.stat-display').forEach(function(e){ e.style.display = ''; });
-                document.querySelectorAll('.stat-input').forEach(function(e){ e.style.display = 'none'; });
-                eb.style.display = '';
-                sb.style.display = 'none';
-                cb.style.display = 'none';
-                setTimeout(function(){ location.reload(); }, 500);
-            } else alert('Error: ' + (res.error || 'Unknown'));
-        }).catch(function(err){ alert('Save failed: ' + err); });
-    });
-})();
-</script>
-<style>.stat-display{font-size:1.4rem;font-weight:700}.stat-input{font-size:1rem;font-weight:700;text-align:center}.stat-card-clickable{transition:box-shadow .15s}.stat-card-clickable:hover{box-shadow:0 0 0 2px rgba(255,193,7,.4)}</style>
-
-
-
-<div class="row g-3">
-    <div class="col-lg-8">
-        <div class="card shadow-sm">
-            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-bar-chart me-2"></i>EP Funnel</h6></div>
-            <div class="card-body"><canvas id="funnelChart" height="200"></canvas></div>
+<div class="container-fluid p-0">
+    <!-- Header with Selector -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div>
+            <h4 class="mb-0 fw-bold">
+                <i class="bi bi-speedometer2 text-primary me-2"></i>
+                {% if active_area == 'BD' %}BRAND&DATA Hub
+                {% elif active_area == 'GTE' %}GTe Product Hub
+                {% elif active_area == 'GTA' %}GTa Product Hub
+                {% elif active_area == 'IR' %}IR&Partneships Hub
+                {% elif active_area == 'AUD' %}AUDIT&CXP Hub
+                {% else %}Global Overview
+                {% endif %}
+            </h4>
+            <p class="text-muted small mb-0 mt-1">Functional workspace & analytics panel</p>
         </div>
-    </div>
-    <div class="col-lg-4">
-        <div class="card shadow-sm mb-3">
-            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Activity</h6></div>
-            <div class="card-body p-0" style="max-height:250px;overflow-y:auto;">
-                {% for ep in recent_eps %}<div class="px-3 py-2 border-bottom small d-flex justify-content-between"><div><a href="{% url 'ep_detail' ep.pk %}" class="fw-semibold text-decoration-none">{{ ep.full_name }}</a><span class="stage-badge stage-{{ ep.current_stage }} ms-1">{{ ep.get_current_stage_display }}</span></div><span class="text-muted" style="font-size:.7rem;">{{ ep.last_activity_at|date:"M d, H:i" }}</span></div>{% empty %}<p class="text-muted small text-center py-3">No EPs yet.</p>{% endfor %}
-            </div>
-        </div>
-        <div class="card shadow-sm">
-            <div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-chat-dots me-2"></i>Recent Interactions</h6></div>
-            <div class="card-body p-0" style="max-height:250px;overflow-y:auto;">
-                {% for i in recent_interactions %}<div class="px-3 py-2 border-bottom small"><div class="d-flex justify-content-between"><strong>{{ i.ep.full_name }}</strong><span class="text-muted" style="font-size:.7rem;">{{ i.date|date:"M d, H:i" }}</span></div><p class="mb-0 text-muted" style="font-size:.8rem;">{{ i.note|truncatechars:80 }}</p><span style="font-size:.7rem;color:#aaa;">by {{ i.author.name|default:"?" }}</span></div>{% empty %}<p class="text-muted small text-center py-3">No interactions yet.</p>{% endfor %}
+        
+        <div class="d-flex align-items-center gap-2">
+            <span class="text-muted small fw-semibold">Workspace Area:</span>
+            <div class="btn-group">
+                <a href="?area=ALL" class="btn btn-sm {% if active_area == 'ALL' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Global</a>
+                {% for code, label in area_choices %}
+                    <a href="?area={{ code }}" class="btn btn-sm {% if active_area == code %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ label }}</a>
+                {% endfor %}
             </div>
         </div>
     </div>
+
+    {% if active_area == 'ALL' %}
+    <!-- ==================== GLOBAL OVERVIEW ==================== -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card card-stat stat-card-blue py-3 px-4">
+                <div class="stat-display">{{ total_eps }}</div>
+                <div class="stat-label">Total EPs</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-stat stat-card-green py-3 px-4">
+                <div class="stat-display">{{ total_realized }}</div>
+                <div class="stat-label">Realized EPs</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-stat stat-card-orange py-3 px-4">
+                <div class="stat-display">{{ total_problems }}</div>
+                <div class="stat-label">Problem Cases</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-stat stat-card-yellow py-3 px-4">
+                <div class="stat-display">{{ total_stale }}</div>
+                <div class="stat-label">Stale Cases</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Funnel Chart and Key Area Metrics -->
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent border-0 pt-3 px-4">
+                    <h6 class="fw-bold mb-0">EP Pipeline Funnel</h6>
+                </div>
+                <div class="card-body px-4">
+                    <canvas id="funnelChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-transparent border-0 pt-3 px-4">
+                    <h6 class="fw-bold mb-0">Area Distribution</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        {% for area in area_distributions %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                            <span class="fw-semibold">{{ area.name }}</span>
+                            <span class="badge bg-primary rounded-pill">{{ area.count }} EPs</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% elif active_area == 'BD' %}
+    <!-- ==================== BRAND&DATA DASHBOARD ==================== -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card card-stat stat-card-blue py-3 px-4">
+                <div class="stat-display">{{ campaigns_count }}</div>
+                <div class="stat-label">Active Campaigns</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat stat-card-cyan py-3 px-4">
+                <div class="stat-display">{{ total_leads }}</div>
+                <div class="stat-label">Leads Generated</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat stat-card-green py-3 px-4">
+                <div class="stat-display">{{ total_conversions }}</div>
+                <div class="stat-label">EP Conversions</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Lead Funnel Statuses -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-funnel me-2 text-primary"></i>Lead Stage Tracking</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-column gap-3">
+                        {% for status_item in lead_status_counts %}
+                        <div>
+                            <div class="d-flex justify-content-between mb-1 small fw-semibold">
+                                <span>{{ status_item.label }}</span>
+                                <span>{{ status_item.count }}</span>
+                            </div>
+                            <div class="progress" style="height: 8px;">
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ status_item.percentage }}%;"></div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Campaigns Management List -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-megaphone me-2 text-info"></i>Marketing Campaigns</h6>
+                    <button class="btn btn-xs btn-primary py-1 px-2" style="font-size: .75rem;" data-bs-toggle="modal" data-bs-target="#newCampaignModal">
+                        <i class="bi bi-plus"></i> New
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+                            <thead>
+                                <tr class="table-light">
+                                    <th>Name</th>
+                                    <th>Channel</th>
+                                    <th>Leads</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for camp in campaigns %}
+                                <tr>
+                                    <td class="fw-bold">{{ camp.name }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ camp.channel }}</span></td>
+                                    <td>{{ camp.leads_generated }}</td>
+                                    <td>
+                                        <span class="badge {% if camp.status == 'Active' %}bg-success{% elif camp.status == 'Completed' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">
+                                            {{ camp.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">No campaigns created yet.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% elif active_area == 'GTE' or active_area == 'GTA' %}
+    <!-- ==================== GTe / GTa PRODUCT WORKSPACE ==================== -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card card-stat stat-card-blue py-3 px-4">
+                <div class="stat-display">{{ total_eps }}</div>
+                <div class="stat-label">Product EPs</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-stat stat-card-orange py-3 px-4">
+                <div class="stat-display">{{ open_matching_count }}</div>
+                <div class="stat-label">In Matching Queue</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-stat stat-card-green py-3 px-4">
+                <div class="stat-display">{{ realized_count }}</div>
+                <div class="stat-label">Realized Stages</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card card-stat stat-card-yellow py-3 px-4">
+                <div class="stat-display">{{ stale_count }}</div>
+                <div class="stat-label">Stale Product Cases</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- EPs Pipeline List -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-people me-2 text-primary"></i>Active Product Pipeline</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+                            <thead>
+                                <tr class="table-light">
+                                    <th>EP Name</th>
+                                    <th>University</th>
+                                    <th>Stage</th>
+                                    <th>Last Activity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ep in product_eps %}
+                                <tr>
+                                    <td class="fw-bold"><a href="{% url 'ep_detail' ep.pk %}" class="text-decoration-none">{{ ep.full_name }}</a></td>
+                                    <td>{{ ep.university|default:"—" }}</td>
+                                    <td>
+                                        <span class="badge stage-badge stage-{{ ep.current_stage }}">
+                                            {{ ep.get_current_stage_display }}
+                                        </span>
+                                    </td>
+                                    <td class="text-muted small">{{ ep.last_activity_at|date:"M d, H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">No EPs assigned in this product track.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Matching Board Suggestion Queue -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-lightning-charge me-2 text-warning"></i>Matching Queue</h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for ep in matching_queue %}
+                        <li class="list-group-item py-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold text-dark">{{ ep.full_name }}</span>
+                                <a href="/matching/?ep_id={{ ep.pk }}" class="btn btn-xs btn-outline-primary py-1 px-2" style="font-size: .7rem;">
+                                    <i class="bi bi-magic"></i> Match Scorer
+                                </a>
+                            </div>
+                            <div class="text-muted small">Major: {{ ep.study_field|default:"—" }}</div>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item py-4 text-center text-muted">All assigned EPs matched!</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% elif active_area == 'IR' %}
+    <!-- ==================== IR&PARTNESHIPS WORKSPACE ==================== -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card card-stat stat-card-blue py-3 px-4">
+                <div class="stat-display">{{ total_irs }}</div>
+                <div class="stat-label">Active IR Partners</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat stat-card-cyan py-3 px-4">
+                <div class="stat-display">{{ total_opps }}</div>
+                <div class="stat-label">Open Opportunities</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat stat-card-green py-3 px-4">
+                <div class="stat-display">{{ realized_irs }}</div>
+                <div class="stat-label">Realizations Realized</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- IR Partners Performance Board -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-building me-2 text-success"></i>Partner Performance Matrix</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+                            <thead>
+                                <tr class="table-light">
+                                    <th>Partner Name</th>
+                                    <th>Country</th>
+                                    <th>Rejection Rate</th>
+                                    <th>Active Opportunities</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for ir in partners %}
+                                <tr>
+                                    <td class="fw-bold">{{ ir.entity_name }}</td>
+                                    <td><span class="badge bg-secondary-subtle text-secondary">{{ ir.country }}</span></td>
+                                    <td class="text-danger fw-semibold">{{ ir.rejection_rate }}%</td>
+                                    <td>{{ ir.open_opportunities_count }} slots</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">No IR Partners active.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Geographical Distribution -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-geo-alt me-2 text-danger"></i>Partner Countries</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for country in country_stats %}
+                        <span class="badge bg-light text-dark border p-2">
+                            <i class="bi bi-globe me-1 text-primary"></i> {{ country.country }} ({{ country.count }})
+                        </span>
+                        {% empty %}
+                        <span class="text-muted small">No country data.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% elif active_area == 'AUD' %}
+    <!-- ==================== AUDIT&CXP WORKSPACE ==================== -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card card-stat stat-card-blue py-3 px-4">
+                <div class="stat-display">{{ total_contracts }}</div>
+                <div class="stat-label">Legal Contracts</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat stat-card-yellow py-3 px-4">
+                <div class="stat-display">{{ missing_docs_count }}</div>
+                <div class="stat-label">Missing Legal Docs</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card card-stat stat-card-green py-3 px-4">
+                <div class="stat-display">{{ pending_payments_count }}</div>
+                <div class="stat-label">Pending Payments</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Missing Legal Documents Urgent Actions -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Urgent Missing Documents</h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush">
+                        {% for doc in missing_docs %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                            <div>
+                                <span class="fw-bold">{{ doc.ep.full_name }}</span>
+                                <div class="text-muted small mt-1">Missing: <span class="text-danger fw-semibold">{{ doc.get_document_type_display }}</span></div>
+                            </div>
+                            <span class="badge bg-danger">Pending Audit</span>
+                        </li>
+                        {% empty %}
+                        <li class="list-group-item py-4 text-center text-muted">All EP legal documents fully audited!</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pending Payments Oversight -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-wallet2 me-2 text-success"></i>Outstanding Payments</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+                            <thead>
+                                <tr class="table-light">
+                                    <th>EP Name</th>
+                                    <th>Amount</th>
+                                    <th>Due Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pay in pending_payments %}
+                                <tr>
+                                    <td class="fw-bold">{{ pay.related_ep.full_name }}</td>
+                                    <td class="fw-semibold text-success">{{ pay.amount }} {{ pay.currency }}</td>
+                                    <td>{{ pay.due_date|date:"M d, Y" }}</td>
+                                    <td><span class="badge bg-warning text-dark">{{ pay.status }}</span></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">No pending payments.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tasks Scoped to Area -->
+    <div class="row g-3 mt-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-list-task me-2 text-primary"></i>Scoped Tasks & Action Items</h6>
+                    <a href="/tasks/" class="btn btn-xs btn-outline-secondary py-1 px-2" style="font-size: .75rem;">Manage All Tasks</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Priority</th>
+                                    <th>Assigned To</th>
+                                    <th>Due Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for task in scoped_tasks %}
+                                <tr>
+                                    <td class="fw-bold">{{ task.title }}</td>
+                                    <td>
+                                        <span class="badge {% if task.priority == 'Urgente' %}bg-danger{% elif task.priority == 'Haute' %}bg-warning text-dark{% elif task.priority == 'Moyenne' %}bg-primary{% else %}bg-secondary{% endif %}" style="font-size: .65rem;">
+                                            {{ task.priority }}
+                                        </span>
+                                    </td>
+                                    <td>{{ task.assigned_to.name }}</td>
+                                    <td>{{ task.due_date|date:"M d, H:i"|default:"—" }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ task.status }}</span></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">No tasks created for this Key Area.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="row g-3 mt-2">
-    <div class="col-md-6"><div class="card shadow-sm"><div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-briefcase me-2"></i>GT Funnel</h6></div><div class="card-body"><canvas id="gtFunnelChart" height="180"></canvas></div></div></div>
-    <div class="col-md-6"><div class="card shadow-sm"><div class="card-header bg-white"><h6 class="mb-0"><i class="bi bi-book me-2"></i>GTe Funnel</h6></div><div class="card-body"><canvas id="gteFunnelChart" height="180"></canvas></div></div></div>
+<!-- Add Marketing Campaign Modal (BD only) -->
+{% if active_area == 'BD' %}
+<div class="modal fade" id="newCampaignModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'member_create' %}"> <!-- Form targets campaign creation later -->
+                {% csrf_token %}
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold">New Marketing Campaign</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Campaign Name *</label>
+                        <input type="text" name="name" class="form-control" required placeholder="e.g. Winter Recruitment 2026">
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Start Date *</label>
+                            <input type="date" name="start_date" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">End Date *</label>
+                            <input type="date" name="end_date" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Marketing Channel</label>
+                        <select name="channel" class="form-select">
+                            <option value="Instagram">Instagram</option>
+                            <option value="LinkedIn">LinkedIn</option>
+                            <option value="Facebook">Facebook</option>
+                            <option value="Campus">Campus Stand</option>
+                            <option value="Email">Email Marketing</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Campaign</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
-{% endblock %}
+{% endif %}
 
-{% block extra_js %}
+<!-- Funnel Chart Scripts -->
+{% if active_area == 'ALL' %}
 <script>
-const labels={{ stage_labels|safe }};
-const allFunnel={{ funnel_counts|safe }};
-const gtFunnel={{ gt_funnel|safe }};
-const gteFunnel={{ gte_funnel|safe }};
-const colors=['#e9ecef','#fff3cd','#cff4fc','#d1e7dd','#cfe2ff','#e8daef','#e8daef','#d1f2eb','#30C39E'];
-function mk(id,data){new Chart(document.getElementById(id),{type:'bar',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}},x:{ticks:{font:{size:10}}}}}});}
-mk('funnelChart',allFunnel);mk('gtFunnelChart',gtFunnel);mk('gteFunnelChart',gteFunnel);
+document.addEventListener("DOMContentLoaded", function() {
+    var ctx = document.getElementById('funnelChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: {{ stage_labels|safe }},
+            datasets: [{
+                label: 'EPs in Funnel',
+                data: {{ funnel_counts|safe }},
+                backgroundColor: 'rgba(3, 126, 243, 0.75)',
+                borderColor: 'rgba(3, 126, 243, 1)',
+                borderWidth: 1,
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+});
 </script>
+{% endif %}
+
 {% endblock %}

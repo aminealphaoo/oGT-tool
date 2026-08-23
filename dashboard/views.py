@@ -25,142 +25,142 @@ STAGE_ORDER = [
 
 def dashboard(request):
     """
-    Role-scoped dashboard.
-    All stats are calculated LIVE from the database (EPs, IRs).
-    Admin can override any value via inline edit — overrides take priority.
+    Key Area Scoped Workspace Dashboard.
+    Calculates specific KPIs and returns tailored work environments for:
+    - BRAND&DATA (Campaigns & Leads)
+    - Product GTe (GTe EP Funnel & matching queue)
+    - Product GTa (GTa EP Funnel & matching queue)
+    - IR&Partneships (Partners & countries list)
+    - AUDIT&CXP (Contracts, legal documents, payments status)
+    - ALL (Global overview of whole LC metrics)
     """
     member = request.current_member
     config = SiteConfig.get()
-    date_from, date_to, preset = parse_date_range(request)
 
-    eps = member.get_visible_eps()
-    irs = member.get_visible_irs()
+    # Determine default workspace area based on member's Key Area team
+    default_area = "ALL"
+    if member and member.team and member.team.key_area:
+        default_area = member.team.key_area
 
-    # ── Load overrides (if any) ──
-    from core.models import DashboardStats
-    try:
-        overrides = DashboardStats.for_config(config)
-    except Exception:
-        overrides = None
+    active_area = request.GET.get("area", default_area)
+    if active_area not in ["BD", "GTE", "GTA", "IR", "AUD", "ALL"]:
+        active_area = "ALL"
 
-    def ov(field_name, live_value):
-        """Return override value if set (non-zero), else live value."""
-        if overrides is None:
-            return live_value
-        override_val = getattr(overrides, field_name, 0)
-        return override_val if override_val != 0 else live_value
-
-    stage_labels = [EP.Stage(s).label for s in STAGE_ORDER]
-
-    # ── Funnel: count EPs by current_stage ──
-    funnel_counts = []
-    for stage in STAGE_ORDER:
-        funnel_counts.append(eps.filter(current_stage=stage).count())
-
-    # ── Totals ──
-    total_eps_live = eps.count()
-    total_realized_live = eps.filter(current_stage="realized").count()
-    problem_cases_live = eps.exclude(problem_flag="none").count()
-    stale_now = timezone.now()
-    stale_cases_live = sum(1 for ep in eps.only("pk", "current_stage", "last_activity_at")
-                           if (stale_now - ep.last_activity_at).days > config.get_threshold(ep.current_stage))
-    ir_partners_live = irs.count()
-
-    # ── Pipeline / forecast ──
-    pipeline_stages = ["matched_with_opp", "applied", "accepted", "approved",
-                       "all_papers_done", "not_all_papers_done", "do_papers"]
-    pipeline_live = eps.filter(current_stage__in=pipeline_stages).count()
-
-    thirty_days_ago = timezone.now() - timedelta(days=30)
-    realized_last_30_live = eps.filter(
-        current_stage="realized",
-        last_activity_at__gte=thirty_days_ago,
-    ).count()
-
-    daily_rate = realized_last_30_live / 30 if realized_last_30_live > 0 else 0
-    term_end = timezone.now() + timedelta(days=180)
-    remaining_days = max(0, (term_end - timezone.now()).days)
-    forecast_realized = round(daily_rate * remaining_days)
-
-    interactions_live = Interaction.objects.filter(ep__in=eps).count()
-
-    # ── Apply overrides ──
-    total_eps_val = ov("total_eps", total_eps_live)
-    stage_realized_val = ov("stage_realized", total_realized_live)
-    problem_cases_val = ov("problem_cases", problem_cases_live)
-    stale_cases_val = ov("stale_cases", stale_cases_live)
-    ir_partners_val = ov("ir_partners", ir_partners_live)
-    pipeline_val = ov("pipeline_value", pipeline_live)
-    realized_30_val = ov("realized_last_30", realized_last_30_live)
-    interactions_val = ov("interactions_period", interactions_live)
-
-    # Override funnel stages
-    for i, stage in enumerate(STAGE_ORDER):
-        funnel_counts[i] = ov("stage_" + stage, funnel_counts[i])
-
-    # ── Live data ──
-
-    recent_interactions = (
-        Interaction.objects.filter(ep__in=eps)
-        .select_related("ep", "author")
-        .order_by("-date")[:10]
-    )
-    recent_eps = eps.order_by("-last_activity_at")[:5]
-
-    # ── GT / GTe funnels ──
-    gt_eps = eps.filter(track="GT")
-    gte_eps = eps.filter(track="GTe")
-    gt_funnel = [gt_eps.filter(current_stage=s).count() for s in STAGE_ORDER]
-    gte_funnel = [gte_eps.filter(current_stage=s).count() for s in STAGE_ORDER]
+    # Restrict non-VPs from accessing areas other than their own or ALL
+    if member and not member.is_vp() and active_area != "ALL":
+        if member.team and member.team.key_area != active_area:
+            active_area = member.team.key_area  # force lock to their area
 
     context = {
-        "is_admin": member.role in ('VP', 'TL', 'admin', 'super_admin'),
-        "hide_edit": "" if member.role in ('VP', 'TL', 'admin', 'super_admin') else "d-none",
-
-        # ── Stats (live + override) ──
-        "stage_labels": stage_labels,
-        "funnel_counts": funnel_counts,
-        "gt_funnel": gt_funnel,
-        "gte_funnel": gte_funnel,
-        "total_eps": total_eps_val,
-        "stage_realized": stage_realized_val,
-        "total_realized": stage_realized_val,
-        "stage_open": ov("stage_open", funnel_counts[0]),
-        "stage_matched": ov("stage_matched", funnel_counts[1]),
-        "stage_applied": ov("stage_applied", funnel_counts[2]),
-        "stage_accepted": ov("stage_accepted", funnel_counts[3]),
-        "stage_approved": ov("stage_approved", funnel_counts[4]),
-        "stage_papers": ov("stage_papers", funnel_counts[5]),
-        "problem_cases": problem_cases_val,
-        "total_problems": problem_cases_val,
-        "stale_cases": stale_cases_val,
-        "total_stale": stale_cases_val,
-        "ir_partners": ir_partners_val,
-        "total_irs": ir_partners_val,
-        "realized_period": stage_realized_val,
-        "interactions_period": interactions_val,
-
-        # ── Forecast ──
-        "forecast": {
-            "realized_last_30": realized_30_val,
-            "daily_rate": round(daily_rate, 2),
-            "remaining_days": remaining_days,
-            "forecast_realized": forecast_realized,
-            "projected_total": stage_realized_val + forecast_realized,
-            "pipeline_value": pipeline_val,
-        },
-
-        # ── Live data ──
-        "recent_interactions": recent_interactions,
-        "recent_eps": recent_eps,
-
-        # ── Config ──
+        "active_area": active_area,
+        "area_choices": Team.KEY_AREA_CHOICES,
         "lc_name": config.lc_name,
-        "current_term": config.current_term,
-        **date_context(date_from, date_to, preset),
+        "current_member": member,
     }
 
+    # Fetch tasks scoped to this area (key_area assigned to member's Team/Area)
+    scoped_tasks = Task.objects.select_related("assigned_to").order_by("-created_at")
+    if active_area != "ALL":
+        scoped_tasks = scoped_tasks.filter(key_area__key_area=active_area)
+    else:
+        # For ALL, show tasks for member's area
+        if member and member.team:
+            scoped_tasks = scoped_tasks.filter(key_area=member.team)
+    context["scoped_tasks"] = scoped_tasks[:10]
+
+    # Calculate statistics based on workspace area
+    if active_area == "ALL":
+        eps = EP.objects.filter(is_archived=False)
+        context["total_eps"] = eps.count()
+        context["total_realized"] = eps.filter(current_stage="realized").count()
+        context["total_problems"] = eps.exclude(problem_flag="none").count()
+        stale_now = timezone.now()
+        context["total_stale"] = sum(
+            1 for ep in eps.only("pk", "current_stage", "last_activity_at")
+            if (stale_now - ep.last_activity_at).days > config.get_threshold(ep.current_stage)
+        )
+        context["stage_labels"] = [EP.Stage(s).label for s in STAGE_ORDER]
+        context["funnel_counts"] = [eps.filter(current_stage=s).count() for s in STAGE_ORDER]
+
+        # Area distribution
+        area_distributions = []
+        for code, label in Team.KEY_AREA_CHOICES:
+            count = eps.filter(assigned_area__key_area=code).count()
+            area_distributions.append({"name": label, "count": count})
+        context["area_distributions"] = area_distributions
+
+    elif active_area == "BD":
+        # BRAND&DATA: Marketing campaigns, leads, conversions
+        campaigns = Campaign.objects.filter(key_area__key_area="BD").order_by("-start_date")
+        leads = Lead.objects.all()
+        
+        context["campaigns"] = campaigns[:10]
+        context["campaigns_count"] = campaigns.count()
+        context["total_leads"] = leads.count()
+        context["total_conversions"] = leads.filter(status="Converted").count()
+
+        # Lead status tracker progress bars
+        status_counts = []
+        total_leads = leads.count() or 1
+        for s_code, s_label in [('New', 'Nouveau'), ('Contacted', 'Contacté'), ('Interested', 'Intéressé'), ('Converted', 'Converti')]:
+            cnt = leads.filter(status=s_code).count()
+            status_counts.append({
+                "label": s_label,
+                "count": cnt,
+                "percentage": int((cnt / total_leads) * 100)
+            })
+        context["lead_status_counts"] = status_counts
+
+    elif active_area in ["GTE", "GTA"]:
+        # GTe / GTa Product Workspace
+        track_map = {"GTE": "GTe", "GTA": "GT"}
+        target_track = track_map[active_area]
+
+        product_eps = EP.objects.filter(track=target_track, is_archived=False)
+        context["total_eps"] = product_eps.count()
+        context["realized_count"] = product_eps.filter(current_stage="realized").count()
+        context["open_matching_count"] = product_eps.filter(current_stage="open").count()
+        
+        stale_now = timezone.now()
+        context["stale_count"] = sum(
+            1 for ep in product_eps.only("pk", "current_stage", "last_activity_at")
+            if (stale_now - ep.last_activity_at).days > config.get_threshold(ep.current_stage)
+        )
+        context["product_eps"] = product_eps.order_by("-last_activity_at")[:10]
+        context["matching_queue"] = product_eps.filter(current_stage="open").order_by("created_at")[:5]
+
+    elif active_area == "IR":
+        # IR&Partneships: Partners performance and country distribution
+        partners = IR.objects.all()
+        context["total_irs"] = partners.count()
+        context["realized_irs"] = sum(p.realized_count for p in partners)
+        
+        from partners.models import Opportunity
+        context["total_opps"] = Opportunity.objects.filter(is_open=True).count()
+        context["partners"] = partners.order_by("-status", "entity_name")[:10]
+
+        # Countries list
+        from django.db.models import Count
+        country_stats = IR.objects.values("country").annotate(count=Count("id")).order_by("-count")
+        context["country_stats"] = country_stats[:10]
+
+    elif active_area == "AUD":
+        # AUDIT&CXP: Legal contracts validation and payments tracking
+        contracts = Contract.objects.all()
+        context["total_contracts"] = contracts.count()
+        
+        # Missing or pending legal docs checklist
+        missing_docs = LegalDocument.objects.filter(status__in=["Missing", "Submitted", "Rejected"]).select_related("ep")
+        context["missing_docs"] = missing_docs[:10]
+        context["missing_docs_count"] = missing_docs.count()
+
+        # Outstanding payments
+        pending_payments = Payment.objects.filter(status__in=["Pending", "Partial", "Overdue"]).select_related("related_ep")
+        context["pending_payments"] = pending_payments[:10]
+        context["pending_payments_count"] = pending_payments.count()
+
     return render(request, "dashboard/index.html", context)
+
 
 
 
