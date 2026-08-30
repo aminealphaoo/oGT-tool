@@ -75,8 +75,9 @@ def ir_detail(request, pk):
     from ops.models import EP
 
     eps_linked = EP.objects.filter(
-        matched_opportunity__ir=ir
-    ).select_related("assigned_to")
+        match_records__opportunity__ir=ir,
+        match_records__status__in=["Proposed", "Interview Scheduled", "Approved"]
+    ).select_related("assigned_to").distinct()
 
     opp_form = OpportunityForm(initial={"ir": ir})
 

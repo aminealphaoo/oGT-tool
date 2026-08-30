@@ -880,11 +880,12 @@ def matching(request):
         member.get_visible_eps()
         .filter(track=track, is_archived=False)
         .filter(
-            dj_models.Q(matched_opportunity__isnull=True)
+            ~dj_models.Q(match_records__status__in=["Proposed", "Interview Scheduled", "Approved"])
             | dj_models.Q(current_stage="open")
         )
         .select_related("assigned_to")
         .order_by("-last_activity_at")
+        .distinct()
     )
 
     # All open opportunities for the quick match dropdown
