@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Match Lab — oGT Tool{% endblock %}
+
+{% block extra_css %}
+<style>
+  body { background: #0a0f1e; }
+  .lab-header {
+    background: linear-gradient(135deg, #1a1f3a 0%, #0d1127 100%);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 1.5rem 2rem;
+  }
+  .lab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; padding: 1.5rem; }
+  .lab-panel {
+    background: #111827;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex; align-items: center; gap: .75rem;
+  }
+  .panel-header h5 { margin: 0; font-size: .9rem; font-weight: 700; color: #fff; }
+  .panel-badge { font-size: .7rem; padding: .25rem .6rem; border-radius: 50px; }
+  .ep-card, .opp-card {
+    padding: .9rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    transition: background .15s;
+  }
+  .ep-card:hover, .opp-card:hover { background: rgba(255,255,255,0.03); }
+  .ep-name { font-weight: 600; font-size: .88rem; color: #e2e8f0; }
+  .ep-meta { font-size: .75rem; color: #94a3b8; }
+  .opp-title { font-weight: 600; font-size: .88rem; color: #e2e8f0; }
+  .opp-meta { font-size: .75rem; color: #94a3b8; }
+  .track-badge-gta { background: rgba(59,130,246,.15); color: #93c5fd; border: 1px solid rgba(59,130,246,.3); }
+  .track-badge-gte { background: rgba(16,185,129,.15); color: #6ee7b7; border: 1px solid rgba(16,185,129,.3); }
+  .propose-btn {
+    font-size: .72rem; padding: .25rem .7rem; border-radius: 8px;
+    background: rgba(99,102,241,.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,.3);
+    cursor: pointer; white-space: nowrap;
+    transition: all .15s;
+  }
+  .propose-btn:hover { background: rgba(99,102,241,.3); color: #fff; }
+  .activity-feed {
+    background: #0e1525; border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 16px; margin: 0 1.5rem 1.5rem; padding: 1.25rem;
+  }
+  .feed-item {
+    display: flex; align-items: flex-start; gap: .75rem;
+    padding: .6rem 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: .8rem;
+  }
+  .feed-item:last-child { border-bottom: none; }
+  .status-pill {
+    font-size: .65rem; padding: .2rem .5rem; border-radius: 4px; font-weight: 600;
+  }
+  .status-proposed { background: rgba(251,191,36,.12); color: #fbbf24; }
+  .status-interview_scheduled { background: rgba(99,102,241,.15); color: #a5b4fc; }
+  .status-approved { background: rgba(16,185,129,.15); color: #34d399; }
+  .status-rejected { background: rgba(239,68,68,.12); color: #fca5a5; }
+  .approve-btn {
+    font-size: .7rem; padding: .2rem .6rem; border-radius: 6px;
+    background: rgba(16,185,129,.15); color: #34d399; border: 1px solid rgba(16,185,129,.3);
+    cursor: pointer;
+  }
+  .approve-btn:hover { background: rgba(16,185,129,.3); }
+  .approval-icons { font-size: .75rem; }
+  .check-ok { color: #34d399; }
+  .check-pending { color: #475569; }
+  @media (max-width: 768px) { .lab-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lab-header">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div>
+      <h4 class="text-white fw-bold mb-1">⚗️ Match Lab</h4>
+      <p class="text-secondary mb-0" style="font-size:.85rem">Propose matches between EPs and Opportunities. Both TLs must approve to schedule an interview.</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'ep_list' %}" class="btn btn-sm btn-outline-secondary">← EP List</a>
+    </div>
+  </div>
+</div>
+
+{% if messages %}
+<div class="px-4 pt-3">
+  {% for msg in messages %}
+  <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show py-2" role="alert">
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="lab-grid">
+  <!-- LEFT: EPs Ready for Matching -->
+  <div class="lab-panel">
+    <div class="panel-header">
+      <span>👤</span>
+      <h5>EPs Ready for Matching</h5>
+      <span class="panel-badge badge track-badge-gta">{{ ready_eps|length }}</span>
+    </div>
+    {% for ep in ready_eps %}
+    <div class="ep-card" id="ep-{{ ep.pk }}">
+      <div>
+        <div class="ep-name">
+          <a href="{% url 'ep_detail' ep.pk %}" class="text-decoration-none text-inherit">{{ ep.full_name }}</a>
+        </div>
+        <div class="ep-meta">
+          <span class="panel-badge badge track-badge-{{ ep.track|lower }}">{{ ep.get_track_display }}</span>
+          {{ ep.get_current_stage_display }}
+          {% if ep.matched_opportunity %}· Opp: {{ ep.matched_opportunity.ir.entity_name }}{% endif %}
+          · Idle {{ ep.idle_days }}d
+        </div>
+      </div>
+      <div class="d-flex flex-column gap-1 align-items-end">
+        {% for opp in open_opps %}
+        {% if opp.track == ep.track %}
+        <form method="post" action="{% url 'match_propose' ep.pk opp.pk %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="propose-btn" title="Propose {{ ep.full_name }} → {{ opp.title }}">
+            🔗 {{ opp.ir.entity_name|truncatechars:18 }}
+          </button>
+        </form>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-4" style="font-size:.85rem">No EPs currently in Open or Matched stages.</div>
+    {% endfor %}
+  </div>
+
+  <!-- RIGHT: Open Opportunities -->
+  <div class="lab-panel">
+    <div class="panel-header">
+      <span>🏢</span>
+      <h5>Open Opportunities</h5>
+      <span class="panel-badge badge track-badge-gte">{{ open_opps|length }}</span>
+    </div>
+    {% for opp in open_opps %}
+    <div class="opp-card" id="opp-{{ opp.pk }}">
+      <div>
+        <div class="opp-title">{{ opp.title|default:opp.ir.entity_name }}</div>
+        <div class="opp-meta">
+          <span class="panel-badge badge track-badge-{{ opp.track|lower }}">{{ opp.get_track_display }}</span>
+          {{ opp.ir.entity_name }} · {{ opp.ir.country }}
+          · {{ opp.match_count }} match{{ opp.match_count|pluralize:"es" }}
+        </div>
+      </div>
+      <a href="{% url 'ir_detail' opp.ir.pk %}" class="text-secondary" style="font-size:.75rem">View →</a>
+    </div>
+    {% empty %}
+    <div class="text-center text-muted py-4" style="font-size:.85rem">No open opportunities.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Activity Feed -->
+<div class="activity-feed">
+  <h6 class="text-white fw-bold mb-3">📋 Recent Matches & Approvals</h6>
+  {% for match in recent_matches %}
+  <div class="feed-item">
+    <div class="flex-grow-1">
+      <span class="text-white" style="font-weight:600">{{ match.ep.full_name }}</span>
+      <span class="text-muted mx-1">↔</span>
+      <span class="text-secondary">{{ match.opportunity.title|default:match.opportunity.ir.entity_name }}</span>
+      <span class="status-pill status-{{ match.status }} ms-2">{{ match.get_status_display }}</span>
+      {% if match.proposed_by %}
+      <span class="text-muted ms-2">by {{ match.proposed_by.name }}</span>
+      {% endif %}
+    </div>
+    <div class="approval-icons d-flex gap-2 align-items-center">
+      <span title="IR TL Approved">
+        {% if match.approved_by_ir_tl %}<i class="bi bi-check-circle-fill check-ok"></i>{% else %}<i class="bi bi-circle check-pending"></i>{% endif %}
+        IR
+      </span>
+      <span title="Product TL Approved">
+        {% if match.approved_by_product_tl %}<i class="bi bi-check-circle-fill check-ok"></i>{% else %}<i class="bi bi-circle check-pending"></i>{% endif %}
+        Prod
+      </span>
+      {% if match.status == "proposed" or match.status == "interview_scheduled" %}
+      <form method="post" action="{% url 'match_tl_approve' match.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="approve-btn">✓ Approve</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <p class="text-muted mb-0" style="font-size:.83rem">No match activity yet. Use the panels above to propose your first match!</p>
+  {% endfor %}
+</div>
+{% endblock %}

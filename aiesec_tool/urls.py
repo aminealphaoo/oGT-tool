@@ -6,7 +6,11 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from ops.urls_eps import matching_patterns, problems_patterns, tasks_patterns, notifications_patterns, audit_patterns
+from ops.urls_eps import (
+    matching_patterns, problems_patterns, tasks_patterns,
+    notifications_patterns, audit_patterns,
+    match_lab_patterns, cxp_patterns, brand_patterns,
+)
 
 from core.api import api_eps, api_health, api_irs, api_stats
 
@@ -21,6 +25,9 @@ urlpatterns = [
     path("tasks/", include(tasks_patterns)),
     path("notifications/", include(notifications_patterns)),
     path("audit/", include(audit_patterns)),
+    path("match-lab/", include(match_lab_patterns)),
+    path("cxp/", include(cxp_patterns)),
+    path("brand/", include(brand_patterns)),
     # API endpoints
     path("api/health/", api_health, name="api_health"),
     path("api/eps/", api_eps, name="api_eps"),

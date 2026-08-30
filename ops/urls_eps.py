@@ -55,3 +55,26 @@ notifications_patterns = [
 audit_patterns = [
     path("", views.audit_log_view, name="audit_log"),
 ]
+
+# Match Lab
+match_lab_patterns = [
+    path("", views.match_lab, name="match_lab"),
+    path("propose/<int:ep_pk>/<int:opp_pk>/", views.match_propose, name="match_propose"),
+    path("approve/<int:record_pk>/", views.match_tl_approve, name="match_tl_approve"),
+]
+
+# CXP Delivery
+cxp_patterns = [
+    path("delivery/", views.cxp_delivery, name="cxp_delivery"),
+    path("delivery/<int:ep_pk>/toggle/", views.cxp_checklist_toggle, name="cxp_checklist_toggle"),
+    path("delivery/<int:ep_pk>/handoff/", views.handoff_create, name="handoff_create"),
+    path("delivery/handoff/<int:record_pk>/accept/", views.handoff_accept, name="handoff_accept"),
+]
+
+# Brand Content
+brand_patterns = [
+    path("content/", views.brand_content, name="brand_content"),
+    path("content/new/", views.content_item_create, name="content_item_create"),
+    path("content/<int:item_pk>/move/", views.content_item_move, name="content_item_move"),
+    path("content/testimonial/new/", views.testimonial_create, name="testimonial_create"),
+]

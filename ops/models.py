@@ -560,6 +560,9 @@ class MatchRecord(models.Model):
     partner_feedback = models.TextField(null=True, blank=True)
     rejection_reason = models.CharField(max_length=30, choices=RejectionReason.choices, null=True, blank=True)
     notes = models.TextField(null=True, blank=True)
+    # Dual TL approval (Match Lab)
+    approved_by_ir_tl = models.BooleanField(default=False)
+    approved_by_product_tl = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -567,7 +570,152 @@ class MatchRecord(models.Model):
         ordering = ["-created_at"]
         unique_together = ["ep", "opportunity"]
 
+    def is_fully_approved(self):
+        return self.approved_by_ir_tl and self.approved_by_product_tl
+
     def __str__(self):
         return f"{self.ep.full_name} -> {self.opportunity.title} ({self.get_status_display()})"
 
 
+# ── Sprint 2 Models ──────────────────────────────────────────────────
+
+
+class DeliveryChecklist(models.Model):
+    """CXP delivery tracking for an EP from Approved → Realized."""
+    class VisaStatus(models.TextChoices):
+        NOT_STARTED = "not_started", "Not started"
+        IN_PROGRESS = "in_progress", "In progress"
+        COMPLETE = "complete", "Complete"
+        NA = "na", "N/A"
+
+    ep = models.OneToOneField(EP, on_delete=models.CASCADE, related_name="delivery_checklist")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    # Communication
+    expectation_email_sent = models.BooleanField(default=False)
+    expectation_email_date = models.DateField(null=True, blank=True)
+
+    # Documents & Admin
+    visa_status = models.CharField(max_length=20, choices=VisaStatus.choices, default=VisaStatus.NOT_STARTED)
+    insurance_status = models.CharField(max_length=20, choices=VisaStatus.choices, default=VisaStatus.NOT_STARTED)
+    contract_status = models.CharField(max_length=20, choices=VisaStatus.choices, default=VisaStatus.NOT_STARTED)
+
+    # Logistics
+    flight_booked = models.BooleanField(default=False)
+    pickup_arranged = models.BooleanField(default=False)
+    first_day_confirmed = models.BooleanField(default=False)
+
+    # Welfare checks
+    welfare_check_1 = models.DateField(null=True, blank=True)
+    welfare_check_2 = models.DateField(null=True, blank=True)
+    welfare_check_3 = models.DateField(null=True, blank=True)
+
+    # Testimonial
+    testimonial_collected = models.BooleanField(default=False)
+    testimonial_text = models.TextField(null=True, blank=True)
+
+    # Reintegration
+    reintegration_done = models.BooleanField(default=False)
+
+    def completion_pct(self):
+        """Returns percentage of checklist items completed."""
+        fields = [
+            self.expectation_email_sent, self.flight_booked, self.pickup_arranged,
+            self.first_day_confirmed, self.testimonial_collected, self.reintegration_done,
+            self.visa_status == 'complete', self.insurance_status == 'complete',
+            self.contract_status == 'complete',
+        ]
+        done = sum(1 for f in fields if f)
+        return round(done / len(fields) * 100)
+
+    def __str__(self):
+        return f"CXP Checklist: {self.ep.full_name} ({self.completion_pct()}%)"
+
+
+class HandoffRecord(models.Model):
+    """Product TL → CXP TL handoff record. Required before EP can advance to Approved."""
+    ep = models.ForeignKey(EP, on_delete=models.CASCADE, related_name="handoffs")
+    from_tl = models.ForeignKey(
+        'members.Member', on_delete=models.SET_NULL, null=True,
+        related_name="handoffs_sent"
+    )
+    to_tl = models.ForeignKey(
+        'members.Member', on_delete=models.SET_NULL, null=True,
+        related_name="handoffs_received"
+    )
+    handoff_date = models.DateTimeField(auto_now_add=True)
+    ep_context = models.TextField(help_text="Context for CXP TL: partner details, EP concerns, expectations")
+    documents_status = models.TextField(blank=True, help_text="State of docs at time of handoff")
+    accepted = models.BooleanField(default=False)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-handoff_date"]
+
+    def __str__(self):
+        return f"Handoff: {self.ep.full_name} ({self.from_tl} → {self.to_tl})"
+
+
+class Testimonial(models.Model):
+    """EP testimonial for brand/content use."""
+    class Status(models.TextChoices):
+        RAW = "raw", "Raw"
+        EDITED = "edited", "Edited"
+        PUBLISHED = "published", "Published"
+
+    ep = models.ForeignKey(EP, on_delete=models.SET_NULL, null=True, blank=True, related_name="testimonials")
+    ancient_ep_name = models.CharField(max_length=200, blank=True, help_text="For EPs not yet in the system")
+    ancient_ep_email = models.EmailField(blank=True)
+    content = models.TextField()
+    video_url = models.URLField(blank=True)
+    photo = models.ImageField(upload_to="testimonials/", null=True, blank=True)
+    collected_by = models.ForeignKey('members.Member', on_delete=models.SET_NULL, null=True, related_name="collected_testimonials")
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.RAW)
+    instagram_url = models.URLField(blank=True)
+    publish_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def ep_name(self):
+        return self.ep.full_name if self.ep else self.ancient_ep_name
+
+    def __str__(self):
+        return f"Testimonial: {self.ep_name()} ({self.get_status_display()})"
+
+
+class ContentCalendar(models.Model):
+    """Brand content planning and scheduling."""
+    class ContentType(models.TextChoices):
+        POST = "post", "Post"
+        REEL = "reel", "Reel"
+        STORY = "story", "Story"
+        CAROUSEL = "carousel", "Carousel"
+
+    class VisualStatus(models.TextChoices):
+        NOT_STARTED = "not_started", "Not started"
+        IN_PROGRESS = "in_progress", "In progress"
+        READY = "ready", "Ready"
+
+    class PublishStatus(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        REVIEW = "review", "Review"
+        SCHEDULED = "scheduled", "Scheduled"
+        PUBLISHED = "published", "Published"
+
+    title = models.CharField(max_length=200)
+    type = models.CharField(max_length=20, choices=ContentType.choices, default=ContentType.POST)
+    concept = models.TextField(blank=True)
+    caption = models.TextField(blank=True)
+    visual_status = models.CharField(max_length=20, choices=VisualStatus.choices, default=VisualStatus.NOT_STARTED)
+    publish_date = models.DateField(null=True, blank=True)
+    responsible = models.ForeignKey('members.Member', on_delete=models.SET_NULL, null=True, blank=True, related_name="content_items")
+    status = models.CharField(max_length=20, choices=PublishStatus.choices, default=PublishStatus.DRAFT)
+    testimonial = models.ForeignKey(Testimonial, on_delete=models.SET_NULL, null=True, blank=True, related_name="content_items")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["publish_date", "status"]
+
+    def __str__(self):
+        return f"[{self.get_type_display()}] {self.title} ({self.get_status_display()})"

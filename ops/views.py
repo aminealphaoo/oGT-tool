@@ -14,7 +14,10 @@ from members.models import Member
 from partners.models import IR, Opportunity
 
 from .forms import AttachmentForm, EPForm, InteractionForm, ProblemFlagForm, StageAdvanceForm, TaskForm
-from .models import EP, Attachment, Interaction, SavedFilter, Task
+from .models import (
+    EP, Attachment, ContentCalendar, DeliveryChecklist, HandoffRecord,
+    Interaction, MatchRecord, SavedFilter, Task, Testimonial,
+)
 
 # ── Stage Prerequisites ────────────────────────────────────────────────
 # "hard" = blocks advance, "soft" = warns but allows
@@ -1286,3 +1289,293 @@ def ep_expa_import(request):
         return redirect("ep_list")
 
     return redirect("ep_bulk_import")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SPRINT 2 VIEWS
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Match Lab ──────────────────────────────────────────────────────
+
+def match_lab(request):
+    """
+    Split-panel matching workspace.
+    Left: Top EPs ready for matching. Right: Top open Opportunities.
+    """
+    member = request.current_member
+    # Top EPs: profile complete, not cold, ordered by last activity
+    ready_eps = EP.objects.filter(
+        current_stage__in=["open", "matched_with_opp"],
+        is_archived=False,
+    ).select_related("assigned_to", "matched_opportunity__ir").order_by("-last_activity_at")[:10]
+
+    # Top Opportunities: open and not ghost (has recent activity)
+    from django.db.models import Count
+    open_opps = Opportunity.objects.filter(
+        is_open=True
+    ).annotate(
+        match_count=Count("match_records")
+    ).select_related("ir").order_by("created_at")[:10]
+
+    # Recent match records (for activity feed)
+    recent_matches = MatchRecord.objects.select_related(
+        "ep", "opportunity__ir", "proposed_by"
+    ).order_by("-created_at")[:20]
+
+    context = {
+        "ready_eps": ready_eps,
+        "open_opps": open_opps,
+        "recent_matches": recent_matches,
+        "current_member": member,
+    }
+    return render(request, "ops/match_lab.html", context)
+
+
+def match_propose(request, ep_pk, opp_pk):
+    """Propose a match between an EP and an Opportunity (creates MatchRecord)."""
+    if request.method != "POST":
+        return redirect("match_lab")
+
+    member = request.current_member
+    ep = get_object_or_404(EP, pk=ep_pk)
+    opp = get_object_or_404(Opportunity, pk=opp_pk)
+
+    record, created = MatchRecord.objects.get_or_create(
+        ep=ep,
+        opportunity=opp,
+        defaults={"proposed_by": member, "status": MatchRecord.Status.PROPOSED},
+    )
+    if not created:
+        messages.warning(request, f"Match already exists for {ep.full_name} ↔ {opp.title}.")
+    else:
+        # Advance EP to Matched with Opp if still Open
+        if ep.current_stage == "open":
+            ep.current_stage = "matched_with_opp"
+            ep.last_activity_at = timezone.now()
+            ep.save(update_fields=["current_stage", "last_activity_at"])
+        messages.success(request, f"✅ Match proposed: {ep.full_name} ↔ {opp.title}")
+
+    return redirect("match_lab")
+
+
+def match_tl_approve(request, record_pk):
+    """TL approves their side of the match. Both TLs must approve to schedule interview."""
+    if request.method != "POST":
+        return redirect("match_lab")
+
+    member = request.current_member
+    record = get_object_or_404(MatchRecord, pk=record_pk)
+
+    if member.is_ir_team() or member.is_vp():
+        record.approved_by_ir_tl = True
+    if member.is_product_team() or member.is_vp():
+        record.approved_by_product_tl = True
+
+    if record.is_fully_approved():
+        record.status = MatchRecord.Status.INTERVIEW_SCHEDULED
+        messages.success(request, f"✅ Both TLs approved! Interview scheduled for {record.ep.full_name}.")
+    else:
+        messages.info(request, "Your approval saved. Waiting for the other TL.")
+
+    record.save()
+    return redirect("match_lab")
+
+
+# ── CXP Delivery Checklist ─────────────────────────────────────────
+
+def cxp_delivery(request):
+    """
+    CXP delivery board: all EPs in Approved+ stages with their checklist status.
+    """
+    member = request.current_member
+    CXP_STAGES = ["approved", "all_papers_done", "not_all_papers_done", "do_papers", "realized"]
+    eps = EP.objects.filter(
+        current_stage__in=CXP_STAGES,
+        is_archived=False,
+    ).select_related("assigned_to", "matched_opportunity__ir").prefetch_related(
+        "delivery_checklist", "handoffs"
+    ).order_by("current_stage", "last_activity_at")
+
+    # Ensure every EP has a DeliveryChecklist
+    for ep in eps:
+        if not hasattr(ep, "delivery_checklist") or ep.delivery_checklist is None:
+            try:
+                ep._delivery_checklist = ep.delivery_checklist
+            except DeliveryChecklist.DoesNotExist:
+                pass
+
+    context = {
+        "eps": eps,
+        "current_member": member,
+        "cxp_stages": CXP_STAGES,
+    }
+    return render(request, "ops/cxp_delivery.html", context)
+
+
+def cxp_checklist_toggle(request, ep_pk):
+    """Toggle a boolean field or update a status field on DeliveryChecklist."""
+    if request.method != "POST":
+        return redirect("cxp_delivery")
+
+    ep = get_object_or_404(EP, pk=ep_pk)
+    checklist, _ = DeliveryChecklist.objects.get_or_create(ep=ep)
+
+    field = request.POST.get("field")
+    value = request.POST.get("value")
+
+    BOOL_FIELDS = [
+        "expectation_email_sent", "flight_booked", "pickup_arranged",
+        "first_day_confirmed", "testimonial_collected", "reintegration_done",
+    ]
+    STATUS_FIELDS = ["visa_status", "insurance_status", "contract_status"]
+    DATE_FIELDS = ["welfare_check_1", "welfare_check_2", "welfare_check_3", "expectation_email_date"]
+
+    if field in BOOL_FIELDS:
+        current = getattr(checklist, field)
+        setattr(checklist, field, not current)
+    elif field in STATUS_FIELDS and value in dict(DeliveryChecklist.VisaStatus.choices):
+        setattr(checklist, field, value)
+    elif field in DATE_FIELDS:
+        setattr(checklist, field, value or None)
+
+    checklist.save()
+    return redirect("cxp_delivery")
+
+
+def handoff_create(request, ep_pk):
+    """Product TL creates a handoff record, triggering CXP TL notification."""
+    if request.method != "POST":
+        return redirect("cxp_delivery")
+
+    member = request.current_member
+    ep = get_object_or_404(EP, pk=ep_pk)
+    ep_context = request.POST.get("ep_context", "")
+    documents_status = request.POST.get("documents_status", "")
+
+    # Find CXP TL
+    from members.models import Team
+    cxp_team = Team.objects.filter(key_area="AUD").first()
+    cxp_tl = cxp_team.tl if cxp_team else None
+
+    record = HandoffRecord.objects.create(
+        ep=ep,
+        from_tl=member,
+        to_tl=cxp_tl,
+        ep_context=ep_context,
+        documents_status=documents_status,
+    )
+
+    # Create DeliveryChecklist if it doesn't exist
+    DeliveryChecklist.objects.get_or_create(ep=ep)
+
+    # Notify CXP TL
+    from core.models import Notification
+    if cxp_tl and cxp_tl.user:
+        Notification.objects.create(
+            user=cxp_tl.user,
+            title=f"📦 Handoff: {ep.full_name}",
+            message=f"{member.name} has handed off {ep.full_name} to CXP. Please review and accept.",
+            link=f"/cxp/delivery/",
+        )
+
+    messages.success(request, f"✅ Handoff created for {ep.full_name}. CXP TL notified.")
+    return redirect("cxp_delivery")
+
+
+def handoff_accept(request, record_pk):
+    """CXP TL accepts the handoff."""
+    if request.method != "POST":
+        return redirect("cxp_delivery")
+
+    record = get_object_or_404(HandoffRecord, pk=record_pk)
+    record.accepted = True
+    record.accepted_at = timezone.now()
+    record.save()
+    messages.success(request, f"✅ Handoff accepted for {record.ep.full_name}.")
+    return redirect("cxp_delivery")
+
+
+# ── Brand Content Module ───────────────────────────────────────────
+
+def brand_content(request):
+    """
+    Content calendar Kanban board (Draft → Review → Scheduled → Published)
+    + Testimonial bank.
+    """
+    member = request.current_member
+
+    # Kanban columns
+    content_by_status = {
+        "draft": ContentCalendar.objects.filter(status="draft").select_related("responsible", "testimonial").order_by("publish_date"),
+        "review": ContentCalendar.objects.filter(status="review").select_related("responsible", "testimonial").order_by("publish_date"),
+        "scheduled": ContentCalendar.objects.filter(status="scheduled").select_related("responsible", "testimonial").order_by("publish_date"),
+        "published": ContentCalendar.objects.filter(status="published").select_related("responsible", "testimonial").order_by("-publish_date")[:10],
+    }
+
+    testimonials = Testimonial.objects.select_related("ep", "collected_by").order_by("-created_at")
+
+    context = {
+        "content_by_status": content_by_status,
+        "testimonials": testimonials,
+        "current_member": member,
+        "content_type_choices": ContentCalendar.ContentType.choices,
+        "visual_status_choices": ContentCalendar.VisualStatus.choices,
+        "publish_status_choices": ContentCalendar.PublishStatus.choices,
+        "testimonial_status_choices": Testimonial.Status.choices,
+    }
+    return render(request, "ops/brand_content.html", context)
+
+
+def content_item_create(request):
+    """Create a new ContentCalendar item."""
+    if request.method != "POST":
+        return redirect("brand_content")
+
+    member = request.current_member
+    ContentCalendar.objects.create(
+        title=request.POST.get("title", "Untitled"),
+        type=request.POST.get("type", "post"),
+        concept=request.POST.get("concept", ""),
+        caption=request.POST.get("caption", ""),
+        publish_date=request.POST.get("publish_date") or None,
+        responsible=member,
+        status="draft",
+    )
+    messages.success(request, "✅ Content item created.")
+    return redirect("brand_content")
+
+
+def content_item_move(request, item_pk):
+    """Move a content item to the next Kanban column."""
+    if request.method != "POST":
+        return redirect("brand_content")
+
+    item = get_object_or_404(ContentCalendar, pk=item_pk)
+    STATUS_ORDER = ["draft", "review", "scheduled", "published"]
+    current_idx = STATUS_ORDER.index(item.status) if item.status in STATUS_ORDER else 0
+    if current_idx < len(STATUS_ORDER) - 1:
+        item.status = STATUS_ORDER[current_idx + 1]
+        item.save(update_fields=["status"])
+    return redirect("brand_content")
+
+
+def testimonial_create(request):
+    """Add a testimonial to the bank."""
+    if request.method != "POST":
+        return redirect("brand_content")
+
+    member = request.current_member
+    ep_pk = request.POST.get("ep_pk")
+    ep = EP.objects.filter(pk=ep_pk).first() if ep_pk else None
+
+    Testimonial.objects.create(
+        ep=ep,
+        ancient_ep_name=request.POST.get("ancient_ep_name", ""),
+        ancient_ep_email=request.POST.get("ancient_ep_email", ""),
+        content=request.POST.get("content", ""),
+        video_url=request.POST.get("video_url", ""),
+        collected_by=member,
+        status="raw",
+    )
+    messages.success(request, "✅ Testimonial added.")
+    return redirect("brand_content")

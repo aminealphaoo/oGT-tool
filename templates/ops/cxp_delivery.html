@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}CXP Delivery — oGT Tool{% endblock %}
+
+{% block extra_css %}
+<style>
+  body { background: #0a0f1e; }
+  .page-header {
+    background: linear-gradient(135deg, #1a1f3a 0%, #0d1127 100%);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding: 1.5rem 2rem;
+  }
+  .ep-delivery-card {
+    background: #111827;
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 16px;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+  }
+  .card-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .ep-name-link { font-weight: 700; color: #e2e8f0; font-size: .95rem; text-decoration: none; }
+  .ep-name-link:hover { color: #818cf8; }
+  .progress-bar-wrap { height: 6px; background: #1e293b; border-radius: 99px; overflow: hidden; flex: 1; }
+  .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #22d3ee); border-radius: 99px; transition: width .4s; }
+  .checklist-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: .6rem; padding: 1rem 1.25rem;
+  }
+  .check-item {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .5rem .75rem; border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    cursor: pointer; transition: all .15s;
+    font-size: .8rem; color: #94a3b8;
+  }
+  .check-item:hover { background: rgba(255,255,255,0.06); }
+  .check-item.done { color: #34d399; border-color: rgba(16,185,129,.25); background: rgba(16,185,129,.06); }
+  .check-item.done .check-icon { color: #34d399; }
+  .check-icon { font-size: .9rem; }
+  .status-select-wrap { display: flex; gap: .4rem; flex-wrap: wrap; }
+  .status-opt {
+    font-size: .7rem; padding: .2rem .5rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; background: transparent;
+    transition: all .15s;
+  }
+  .status-opt:hover, .status-opt.active { background: rgba(99,102,241,.2); color: #a5b4fc; border-color: rgba(99,102,241,.4); }
+  .handoff-section {
+    padding: .75rem 1.25rem;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    background: rgba(0,0,0,.2);
+  }
+  .handoff-badge { font-size: .7rem; padding: .25rem .6rem; border-radius: 6px; }
+  .handoff-pending { background: rgba(251,191,36,.1); color: #fbbf24; border: 1px solid rgba(251,191,36,.2); }
+  .handoff-accepted { background: rgba(16,185,129,.1); color: #34d399; border: 1px solid rgba(16,185,129,.2); }
+  .btn-handoff {
+    font-size: .78rem; padding: .3rem .8rem; border-radius: 8px;
+    background: rgba(99,102,241,.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,.3);
+  }
+  .welfare-date { font-size: .75rem; color: #64748b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div>
+      <h4 class="text-white fw-bold mb-1">📦 CXP Delivery Board</h4>
+      <p class="text-secondary mb-0" style="font-size:.85rem">Track delivery progress for every EP from Approved to Realized.</p>
+    </div>
+    <a href="{% url 'ep_list' %}" class="btn btn-sm btn-outline-secondary">← EP List</a>
+  </div>
+</div>
+
+{% if messages %}
+<div class="px-4 pt-3">
+  {% for msg in messages %}
+  <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissible fade show py-2">
+    {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="p-4">
+  {% for ep in eps %}
+  {% with checklist=ep.delivery_checklist %}
+  <div class="ep-delivery-card">
+    <!-- Header -->
+    <div class="card-top">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <a href="{% url 'ep_detail' ep.pk %}" class="ep-name-link">{{ ep.full_name }}</a>
+        <span class="badge bg-secondary" style="font-size:.72rem">{{ ep.get_current_stage_display }}</span>
+        {% if ep.matched_opportunity %}
+        <span class="text-muted" style="font-size:.78rem">🏢 {{ ep.matched_opportunity.ir.entity_name }}</span>
+        {% endif %}
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        {% if checklist %}
+        <div style="min-width:120px">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" style="width:{{ checklist.completion_pct }}%"></div>
+          </div>
+          <div class="text-muted" style="font-size:.7rem;text-align:right;margin-top:2px">{{ checklist.completion_pct }}%</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if checklist %}
+    <!-- Checklist Grid -->
+    <div class="checklist-grid">
+      <!-- Boolean toggles -->
+      {% for field, label, icon in checklist_items %}
+      <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="field" value="{{ field }}">
+        <button type="submit" class="check-item w-100 {% if checklist|attr:field %}done{% endif %}">
+          <span class="check-icon">
+            {% if checklist|attr:field %}✅{% else %}⬜{% endif %}
+          </span>
+          {{ label }}
+        </button>
+      </form>
+      {% endfor %}
+
+      <!-- Manual toggles (hardcoded for simplicity) -->
+      {% for field, label in "expectation_email_sent,Expectation Email|flight_booked,Flight Booked|pickup_arranged,Pickup Arranged|first_day_confirmed,First Day OK|testimonial_collected,Testimonial|reintegration_done,Reintegration"|split:"|" %}
+      {% endfor %}
+
+      <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}">
+        {% csrf_token %}<input type="hidden" name="field" value="expectation_email_sent">
+        <button type="submit" class="check-item w-100 {% if checklist.expectation_email_sent %}done{% endif %}">
+          <span class="check-icon">{% if checklist.expectation_email_sent %}✅{% else %}⬜{% endif %}</span>Expectation Email
+        </button>
+      </form>
+      <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}">
+        {% csrf_token %}<input type="hidden" name="field" value="flight_booked">
+        <button type="submit" class="check-item w-100 {% if checklist.flight_booked %}done{% endif %}">
+          <span class="check-icon">{% if checklist.flight_booked %}✅{% else %}⬜{% endif %}</span>Flight Booked
+        </button>
+      </form>
+      <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}">
+        {% csrf_token %}<input type="hidden" name="field" value="pickup_arranged">
+        <button type="submit" class="check-item w-100 {% if checklist.pickup_arranged %}done{% endif %}">
+          <span class="check-icon">{% if checklist.pickup_arranged %}✅{% else %}⬜{% endif %}</span>Pickup Arranged
+        </button>
+      </form>
+      <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}">
+        {% csrf_token %}<input type="hidden" name="field" value="first_day_confirmed">
+        <button type="submit" class="check-item w-100 {% if checklist.first_day_confirmed %}done{% endif %}">
+          <span class="check-icon">{% if checklist.first_day_confirmed %}✅{% else %}⬜{% endif %}</span>First Day Confirmed
+        </button>
+      </form>
+      <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}">
+        {% csrf_token %}<input type="hidden" name="field" value="testimonial_collected">
+        <button type="submit" class="check-item w-100 {% if checklist.testimonial_collected %}done{% endif %}">
+          <span class="check-icon">{% if checklist.testimonial_collected %}✅{% else %}⬜{% endif %}</span>Testimonial Collected
+        </button>
+      </form>
+      <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}">
+        {% csrf_token %}<input type="hidden" name="field" value="reintegration_done">
+        <button type="submit" class="check-item w-100 {% if checklist.reintegration_done %}done{% endif %}">
+          <span class="check-icon">{% if checklist.reintegration_done %}✅{% else %}⬜{% endif %}</span>Reintegration Done
+        </button>
+      </form>
+    </div>
+
+    <!-- Status Fields -->
+    <div class="px-4 pb-2 d-flex flex-wrap gap-3">
+      <div>
+        <div class="text-muted mb-1" style="font-size:.72rem">VISA</div>
+        <div class="status-select-wrap">
+          {% for val, label in "not_started,Not Started|in_progress,In Progress|complete,Complete|na,N/A"|split:"|" %}
+          {% endfor %}
+          {% for val, label in checklist.VisaStatus.choices %}
+          <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}" style="display:inline">
+            {% csrf_token %}<input type="hidden" name="field" value="visa_status"><input type="hidden" name="value" value="{{ val }}">
+            <button type="submit" class="status-opt {% if checklist.visa_status == val %}active{% endif %}">{{ label }}</button>
+          </form>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <div class="text-muted mb-1" style="font-size:.72rem">INSURANCE</div>
+        <div class="status-select-wrap">
+          {% for val, label in checklist.VisaStatus.choices %}
+          <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}" style="display:inline">
+            {% csrf_token %}<input type="hidden" name="field" value="insurance_status"><input type="hidden" name="value" value="{{ val }}">
+            <button type="submit" class="status-opt {% if checklist.insurance_status == val %}active{% endif %}">{{ label }}</button>
+          </form>
+          {% endfor %}
+        </div>
+      </div>
+      <div>
+        <div class="text-muted mb-1" style="font-size:.72rem">CONTRACT</div>
+        <div class="status-select-wrap">
+          {% for val, label in checklist.VisaStatus.choices %}
+          <form method="post" action="{% url 'cxp_checklist_toggle' ep.pk %}" style="display:inline">
+            {% csrf_token %}<input type="hidden" name="field" value="contract_status"><input type="hidden" name="value" value="{{ val }}">
+            <button type="submit" class="status-opt {% if checklist.contract_status == val %}active{% endif %}">{{ label }}</button>
+          </form>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Welfare Checks -->
+    <div class="px-4 pb-3 d-flex flex-wrap gap-3 align-items-center">
+      <span class="text-muted welfare-date">Welfare checks:</span>
+      <span class="welfare-date">① {{ checklist.welfare_check_1|default:"—" }}</span>
+      <span class="welfare-date">② {{ checklist.welfare_check_2|default:"—" }}</span>
+      <span class="welfare-date">③ {{ checklist.welfare_check_3|default:"—" }}</span>
+    </div>
+
+    {% else %}
+    <!-- No checklist yet: show handoff form -->
+    <div class="p-4 text-center text-muted" style="font-size:.85rem">
+      No CXP checklist created yet. Product TL must handoff this EP first.
+    </div>
+    {% endif %}
+
+    <!-- Handoff Section -->
+    <div class="handoff-section d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        {% for handoff in ep.handoffs.all %}
+        <span class="handoff-badge {% if handoff.accepted %}handoff-accepted{% else %}handoff-pending{% endif %}">
+          {% if handoff.accepted %}✅ Handed off{% else %}⏳ Handoff pending{% endif %}
+          ({{ handoff.from_tl.name }} → {{ handoff.to_tl.name|default:"CXP TL" }})
+        </span>
+        {% if not handoff.accepted and current_member.is_cxp_team %}
+        <form method="post" action="{% url 'handoff_accept' handoff.pk %}">
+          {% csrf_token %}
+          <button class="btn btn-sm btn-success" style="font-size:.75rem">Accept Handoff</button>
+        </form>
+        {% endif %}
+        {% empty %}
+        <span class="text-muted" style="font-size:.78rem">No handoff yet</span>
+        {% endfor %}
+      </div>
+
+      {% if not ep.handoffs.exists %}
+      <button class="btn-handoff btn" data-bs-toggle="collapse" data-bs-target="#handoff-form-{{ ep.pk }}">
+        📤 Handoff to CXP
+      </button>
+      {% endif %}
+    </div>
+
+    <!-- Handoff Form (collapsed) -->
+    <div id="handoff-form-{{ ep.pk }}" class="collapse px-4 pb-3">
+      <form method="post" action="{% url 'handoff_create' ep.pk %}" class="mt-2">
+        {% csrf_token %}
+        <div class="mb-2">
+          <label class="text-muted" style="font-size:.78rem">EP Context (partner info, concerns, expectations)</label>
+          <textarea name="ep_context" class="form-control form-control-sm mt-1" rows="2"
+            style="background:#1e293b;border-color:#334155;color:#e2e8f0" required></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="text-muted" style="font-size:.78rem">Documents Status</label>
+          <input name="documents_status" class="form-control form-control-sm mt-1"
+            style="background:#1e293b;border-color:#334155;color:#e2e8f0" placeholder="e.g. CV done, contract missing">
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">📦 Submit Handoff</button>
+      </form>
+    </div>
+  </div>
+  {% endwith %}
+  {% empty %}
+  <div class="text-center text-muted py-5">
+    <i class="bi bi-check-circle fs-1 mb-3 d-block"></i>
+    No EPs in approved or later stages.
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
