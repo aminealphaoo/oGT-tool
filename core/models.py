@@ -68,55 +68,6 @@ class SiteConfig(models.Model):
         return weights.get(key, defaults.get(key, 0))
 
 
-class DashboardStats(models.Model):
-    """
-    Admin-controlled dashboard counters.
-    The admin sets these values manually from the admin panel
-    and they are displayed in the member dashboard.
-    """
-    config = models.OneToOneField(SiteConfig, on_delete=models.CASCADE, primary_key=True, related_name="dashboard_stats")
-    updated_at = models.DateTimeField(auto_now=True, help_text="Last time stats were updated")
-
-    # ── Overall ──
-    total_eps = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Total EPs")
-
-    # ── Internal funnel stages ──
-    stage_open = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Stage: Open")
-    stage_matched = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Stage: Matched with Opp")
-    stage_applied = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Stage: Applied")
-    stage_accepted = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Stage: Accepted")
-    stage_approved = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Stage: Approved")
-    stage_papers = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Stage: Papers")
-    stage_realized = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Stage: Realized")
-
-    # ── Other ──
-    problem_cases = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Problem Cases")
-    stale_cases = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Stale Cases")
-    pipeline_value = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="EPs in Pipeline")
-    realized_last_30 = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Realized (last 30 days)")
-    ir_partners = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="IR Partners")
-    open_opps = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Open Opportunities")
-    interactions_period = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)], verbose_name="Interactions this period")
-
-    class Meta:
-        verbose_name = "Dashboard Stats"
-        verbose_name_plural = "Dashboard Stats"
-
-    def __str__(self):
-        return f"Dashboard Stats ({self.updated_at:%Y-%m-%d %H:%M})"
-
-    @classmethod
-    def for_config(cls, config):
-        obj, _ = cls.objects.get_or_create(config=config)
-        return obj
-
-    @property
-    def funnel_counts(self):
-        return [
-            self.stage_open, self.stage_matched, self.stage_applied,
-            self.stage_accepted, self.stage_approved, self.stage_papers,
-            self.stage_realized,
-        ]
 
 
 class EmailTemplate(models.Model):
@@ -124,7 +75,7 @@ class EmailTemplate(models.Model):
     subject = models.CharField(max_length=200)
     body = models.TextField(help_text="Utilisez {{ep.first_name}}, {{partner.name}}, etc.")
     variables = models.JSONField(default=list, help_text="Liste des variables disponibles")
-    track = models.CharField(max_length=20, choices=[('GT','Global Talent'),('GTe','Global Teacher'),('All','Tous')], default='All')
+    track = models.CharField(max_length=20, choices=[('GTa','Global Talent'),('GTe','Global Teacher'),('All','Tous')], default='All')
     is_active = models.BooleanField(default=True)
 
     def __str__(self):

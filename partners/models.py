@@ -164,8 +164,8 @@ class Opportunity(models.Model):
     expires_at = models.DateField(null=True, blank=True)
     track = models.CharField(
         max_length=5,
-        choices=[("GT", "Global Talent"), ("GTe", "Global Teacher")],
-        default="GT",
+        choices=[("GTa", "Global Talent"), ("GTe", "Global Teacher")],
+        default="GTa",
         help_text="Which AIESEC track this opportunity aligns with",
     )
     required_skills = models.JSONField(default=list)
@@ -177,7 +177,10 @@ class Opportunity(models.Model):
     keywords = models.TextField(blank=True, help_text="Mots-clés du poste séparés par des virgules")
     created_at = models.DateTimeField(auto_now_add=True)
 
-
+    @property
+    def matched_eps_count(self):
+        # Counts MatchRecords where status != Withdrawn/Rejected
+        return self.match_records.exclude(status__in=["rejected", "withdrawn"]).count()
     class Meta:
         ordering = ["-is_open", "-created_at"]
         verbose_name_plural = "Opportunities"

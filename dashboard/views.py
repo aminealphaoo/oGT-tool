@@ -496,29 +496,3 @@ def automation(request):
 
 
 
-# ── Admin: inline stats update ──
-@require_POST
-def update_stats(request):
-    """Save DashboardStats from the dashboard inline edit form (admin only)."""
-    if not request.current_member or request.current_member.role not in ('VP', 'TL', 'admin', 'super_admin'):
-        return JsonResponse({"ok": False, "error": "Permission denied"}, status=403)
-
-    from core.models import DashboardStats
-    config = SiteConfig.get()
-    stats = DashboardStats.for_config(config)
-
-    # Update all fields from POST
-    int_fields = [
-        'total_eps',
-        'expa_applied', 'expa_accepted', 'expa_approved', 'expa_realized', 'expa_finished',
-        'stage_open', 'stage_matched', 'stage_applied', 'stage_accepted', 'stage_approved', 'stage_papers', 'stage_realized',
-        'problem_cases', 'stale_cases', 'pipeline_value', 'realized_last_30',
-        'ir_partners', 'open_opps', 'interactions_period',
-    ]
-    for field in int_fields:
-        val = request.POST.get(field, '')
-        if val.isdigit() or (val.startswith('-') and val[1:].isdigit()):
-            setattr(stats, field, int(val))
-
-    stats.save()
-    return JsonResponse({"ok": True, "updated_at": stats.updated_at.isoformat()})

@@ -14,63 +14,119 @@ from django.utils import timezone
 @shared_task
 def check_stale_cases():
     """
-    Daily check: find EPs exceeding per-stage idle thresholds.
-    Uses stage-loop queries instead of per-EP loop — 9 queries max.
+    Daily check at 09:00:
+    - Cold EPs (idle > 7 days): notify assigned_member, assigned_tl, VP
+    - Ghost Opportunities (10+ days, no match): notify IR owner, IR TL, VP
     """
-    from core.models import SiteConfig
+    from core.models import SiteConfig, Notification
     from members.models import Member
     from ops.models import EP, Interaction
+    from partners.models import Opportunity
 
     config = SiteConfig.get()
     now = timezone.now()
-    stale_eps = []
+    today = now.date()
+    cold_notified = 0
+    ghost_notified = 0
 
-    stage_thresholds = {
-        "open": 14,
-        "matched_with_opp": 7,
-        "applied": 7,
-        "accepted": 14,
-        "approved": 14,
-        "all_papers_done": 7,
-        "not_all_papers_done": 7,
-        "do_papers": 14,
-    }
+    vp = Member.objects.filter(role="VP", is_active=True).first()
+    vp_user = vp.user if vp else None
 
-    for stage, default_threshold in stage_thresholds.items():
-        threshold = config.get_threshold(stage) or default_threshold
-        cutoff = now - timedelta(days=threshold)
-        stage_stales = EP.objects.filter(
-            current_stage=stage,
-            last_activity_at__lt=cutoff,
-        )
-        stale_eps.extend(list(stage_stales))
+    # ── Cold EPs ──────────────────────────────────────────────────────
+    cold_cutoff = now - timedelta(days=7)
+    cold_eps = EP.objects.filter(
+        current_stage__in=["open", "matched_with_opp", "applied", "accepted", "approved"],
+        last_activity_at__lt=cold_cutoff,
+    ).select_related("assigned_to", "assigned_tl")
 
-    if not stale_eps:
-        return {"stale_count": 0, "message": "No stale cases today."}
+    for ep in cold_eps:
+        # Deduplicate: only one COLD notification per EP per day
+        already_sent = Notification.objects.filter(
+            title__startswith=f"❄️ Cold EP: {ep.full_name}",
+            created_at__date=today,
+        ).exists()
+        if already_sent:
+            continue
 
-    system_member = Member.objects.filter(role="VP", is_active=True).first()
-    for ep in stale_eps:
-        Interaction.objects.create(
-            ep=ep,
-            author=system_member,
-            note=(
-                f"⚠️ Auto-alert: EP has been idle for "
-                f"{(timezone.now() - ep.last_activity_at).days} days "
-                f"at stage '{ep.get_current_stage_display()}'. "
-                f"Threshold: {config.get_threshold(ep.current_stage)} days. "
-                f"Please follow up."
-            ),
-        )
+        idle_days = (now - ep.last_activity_at).days
+        msg = f"EP {ep.full_name} has been cold for {idle_days} days at stage '{ep.get_current_stage_display()}'. Please follow up."
+        link = f"/eps/{ep.pk}/"
 
-    summary_lines = [
-        f"EP: {ep.full_name} — {ep.get_current_stage_display()} — idle {(timezone.now() - ep.last_activity_at).days}d"
-        for ep in stale_eps
-    ]
+        # Notify assigned member
+        if ep.assigned_to and ep.assigned_to.user:
+            Notification.objects.create(
+                user=ep.assigned_to.user,
+                title=f"❄️ Cold EP: {ep.full_name}",
+                message=msg,
+                link=link,
+            )
+        # Notify TL
+        if ep.assigned_tl and ep.assigned_tl.user:
+            Notification.objects.create(
+                user=ep.assigned_tl.user,
+                title=f"❄️ Cold EP: {ep.full_name}",
+                message=msg,
+                link=link,
+            )
+        # Notify VP
+        if vp_user and (not ep.assigned_to or ep.assigned_to.user != vp_user):
+            Notification.objects.create(
+                user=vp_user,
+                title=f"❄️ Cold EP: {ep.full_name}",
+                message=msg,
+                link=link,
+            )
+        # Log interaction as before
+        if ep.assigned_to:
+            Interaction.objects.create(
+                ep=ep,
+                author=vp,
+                note=f"⚠️ Auto-alert: EP cold for {idle_days} days at '{ep.get_current_stage_display()}'.",
+            )
+        cold_notified += 1
+
+    # ── Ghost Opportunities ────────────────────────────────────────────
+    ghost_cutoff = now - timedelta(days=10)
+    ghost_opps = Opportunity.objects.filter(
+        is_open=True,
+        created_at__lt=ghost_cutoff,
+        match_records__isnull=True,
+    ).select_related("ir__assigned_to").distinct()
+
+    for opp in ghost_opps:
+        already_sent = Notification.objects.filter(
+            title__startswith=f"👻 Ghost Opp: {opp.title}",
+            created_at__date=today,
+        ).exists()
+        if already_sent:
+            continue
+
+        days_live = (now - opp.created_at).days
+        msg = f"Opportunity '{opp.title}' from {opp.ir.entity_name} has been open {days_live} days with no matches. Re-profile or close."
+        link = f"/partners/ir/{opp.ir.pk}/"
+
+        # Notify IR owner
+        if opp.ir.assigned_to and opp.ir.assigned_to.user:
+            Notification.objects.create(
+                user=opp.ir.assigned_to.user,
+                title=f"👻 Ghost Opp: {opp.title}",
+                message=msg,
+                link=link,
+            )
+        # Notify VP
+        if vp_user:
+            Notification.objects.create(
+                user=vp_user,
+                title=f"👻 Ghost Opp: {opp.title}",
+                message=msg,
+                link=link,
+            )
+        ghost_notified += 1
 
     return {
-        "stale_count": len(stale_eps),
-        "stale_eps": summary_lines,
-        "message": f"Found {len(stale_eps)} stale case(s). Interactions logged.",
+        "cold_ep_notifications": cold_notified,
+        "ghost_opp_notifications": ghost_notified,
+        "message": f"Sent {cold_notified} cold EP + {ghost_notified} ghost opp alerts.",
     }
 
 

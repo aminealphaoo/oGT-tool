@@ -80,20 +80,85 @@ class Member(models.Model):
         return self.role == self.Role.MEMBER
 
 
+    def is_ir_team(self) -> bool:
+        return self.team and self.team.key_area == "IR"
+
+    def is_bd_team(self) -> bool:
+        return self.team and self.team.key_area == "BD"
+
+    def is_cxp_team(self) -> bool:
+        return self.team and self.team.key_area == "AUD"
+
+    def is_product_team(self) -> bool:
+        return self.team and self.team.key_area in ("GTE", "GTA")
+
     def can_view_ep(self, ep) -> bool:
         """Check if this member can view a given EP."""
         if self.is_vp():
             return True
         if self.is_tl() and self.team:
-            if ep.assigned_area == self.team or (ep.assigned_to and ep.assigned_to.team == self.team) or (ep.assigned_member and ep.assigned_member.team == self.team):
+            # TL sees their team's EPs only
+            if (ep.assigned_area == self.team or
+                    (ep.assigned_to and ep.assigned_to.team == self.team) or
+                    (ep.assigned_member and ep.assigned_member.team == self.team)):
                 return True
         if ep.assigned_member == self or ep.assigned_to == self:
             return True
+        # IR members can read EP profiles (skills/languages), handled in view
+        if self.is_ir_team():
+            return True
+        # BD members can read all EPs for data hygiene
+        if self.is_bd_team():
+            return True
+        # CXP members can see EPs in Approved+ stages
+        if self.is_cxp_team():
+            CXP_STAGES = ["approved", "all_papers_done", "not_all_papers_done", "do_papers", "realized"]
+            return ep.current_stage in CXP_STAGES
         return False
 
+    def can_see_ep_contact(self, ep) -> bool:
+        """Check if member can see EP phone/email. IR and BD members cannot."""
+        if self.is_vp():
+            return True
+        if self.is_ir_team() or self.is_bd_team():
+            return False
+        if self.is_tl() and self.team:
+            if (ep.assigned_area == self.team or
+                    (ep.assigned_to and ep.assigned_to.team == self.team)):
+                return True
+        return ep.assigned_member == self or ep.assigned_to == self
+
+    def can_edit_ep(self, ep) -> bool:
+        """Check if member can edit a given EP."""
+        if self.is_vp():
+            return True
+        if self.is_tl() and self.team:
+            if (ep.assigned_area == self.team or
+                    (ep.assigned_to and ep.assigned_to.team == self.team)):
+                return True
+        # CXP can edit EPs in Approved+ stages only
+        if self.is_cxp_team():
+            CXP_STAGES = ["approved", "all_papers_done", "not_all_papers_done", "do_papers", "realized"]
+            return ep.current_stage in CXP_STAGES
+        return ep.assigned_member == self or ep.assigned_to == self
+
     def can_view_ir(self, ir) -> bool:
-        """Check if this member can view a given IR. Currently allows all members to view all IRs."""
+        """All members can see IR name and entity. Contact details gated separately."""
         return True
+
+    def can_see_ir_contact(self, ir) -> bool:
+        """IR contact details: TL+ and VP can see. Plain members cannot."""
+        if self.is_vp() or self.is_tl():
+            return True
+        return False
+
+    def can_edit_ir(self, ir) -> bool:
+        """Only TL of IR team and VP can edit IRs."""
+        if self.is_vp():
+            return True
+        if self.is_tl() and self.is_ir_team():
+            return True
+        return False
 
     # ── Scoped querysets ──────────────────────────────────────────────
     def get_visible_eps(self):
@@ -108,6 +173,17 @@ class Member(models.Model):
                 models.Q(assigned_to__team=self.team) |
                 models.Q(assigned_member__team=self.team)
             ).distinct()
+        # IR members see all EPs for match lab (no contact details)
+        if self.is_ir_team():
+            return EP.objects.all()
+        # BD members see all EPs for data hygiene (no contact details)
+        if self.is_bd_team():
+            return EP.objects.all()
+        # CXP members see only Approved+ EPs
+        if self.is_cxp_team():
+            CXP_STAGES = ["approved", "all_papers_done", "not_all_papers_done", "do_papers", "realized"]
+            return EP.objects.filter(current_stage__in=CXP_STAGES)
+        # Default: own EPs only
         return EP.objects.filter(models.Q(assigned_member=self) | models.Q(assigned_to=self)).distinct()
 
     def get_visible_irs(self):

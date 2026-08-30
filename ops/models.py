@@ -16,7 +16,7 @@ class EP(models.Model):
     """Exchange Participant — the core entity."""
 
     class Track(models.TextChoices):
-        GLOBAL_TALENT = "GT", "Global Talent"
+        GLOBAL_TALENT = "GTa", "Global Talent"
         GLOBAL_TEACHER = "GTe", "Global Teacher"
 
     class Stage(models.TextChoices):
@@ -215,6 +215,9 @@ class EP(models.Model):
         }
         return order_map.get(self.current_stage, 99)
 
+    def get_match_history(self):
+        return self.match_records.all()
+
     def revert_stage(self, changed_by: Member, note: str = ""):
         """Revert to the previous stage — logs the reversal."""
         previous = (
@@ -348,7 +351,7 @@ class Lead(models.Model):
     phone = models.CharField(max_length=50, blank=True)
     university = models.CharField(max_length=200, blank=True)
     study_field = models.CharField(max_length=100, blank=True)
-    interest_track = models.CharField(max_length=20, choices=[('GT','Global Talent'),('GTe','Global Teacher')])
+    interest_track = models.CharField(max_length=20, choices=[('GTa','Global Talent'),('GTe','Global Teacher')])
     source_campaign = models.ForeignKey(Campaign, on_delete=models.SET_NULL, null=True, blank=True)
     assigned_marc_member = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, blank=True, related_name='leads')
     status = models.CharField(max_length=20, choices=[
@@ -529,5 +532,42 @@ class Task(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class MatchRecord(models.Model):
+    """Tracks the matching process between an EP and an Opportunity."""
+    class Status(models.TextChoices):
+        PROPOSED = "proposed", "Proposed"
+        INTERVIEW_SCHEDULED = "interview_scheduled", "Interview Scheduled"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+
+    class RejectionReason(models.TextChoices):
+        SKILLS_MISMATCH = "skills", "Skills mismatch"
+        LANGUAGE = "language", "Language"
+        TIMING = "timing", "Timing"
+        EP_WITHDREW = "ep_withdrew", "EP withdrew"
+        PARTNER_WITHDREW = "partner_withdrew", "Partner withdrew"
+        OTHER = "other", "Other"
+
+    ep = models.ForeignKey('EP', on_delete=models.CASCADE, related_name="match_records")
+    opportunity = models.ForeignKey('partners.Opportunity', on_delete=models.CASCADE, related_name="match_records")
+    proposed_by = models.ForeignKey('members.Member', on_delete=models.SET_NULL, null=True, related_name="proposed_matches")
+    proposed_date = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=30, choices=Status.choices, default=Status.PROPOSED)
+    interview_date = models.DateTimeField(null=True, blank=True)
+    partner_feedback = models.TextField(null=True, blank=True)
+    rejection_reason = models.CharField(max_length=30, choices=RejectionReason.choices, null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = ["ep", "opportunity"]
+
+    def __str__(self):
+        return f"{self.ep.full_name} -> {self.opportunity.title} ({self.get_status_display()})"
 
 

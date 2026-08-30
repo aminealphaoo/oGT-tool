@@ -243,10 +243,17 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="text-muted small d-block mb-1">Email</label>
-                                <div><a href="mailto:{{ ep.email }}" class="text-decoration-none">{{ ep.email|default:"—" }}</a></div>
+                                <div>
+                                    {% if can_see_contact %}
+                                        <a href="mailto:{{ ep.email }}" class="text-decoration-none">{{ ep.email|default:"—" }}</a>
+                                    {% else %}
+                                        <span class="text-muted fst-italic">🔒 Hidden (contact details restricted)</span>
+                                    {% endif %}
+                                </div>
                             </div>
                             <div class="col-md-6">
                                 <label class="text-muted small d-block mb-1">Phone</label>
+                                {% if can_see_contact %}
                                 <div class="d-flex align-items-center gap-2">
                                     {{ ep.phone|default:"—" }}
                                     {% if ep.whatsapp_number %}
@@ -255,6 +262,9 @@
                                     </a>
                                     {% endif %}
                                 </div>
+                                {% else %}
+                                <span class="text-muted fst-italic">🔒 Hidden</span>
+                                {% endif %}
                             </div>
                         </div>
 

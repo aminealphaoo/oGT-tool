@@ -217,6 +217,47 @@
                 <div class="stat-icon-bg bg-gradient-yellow shadow-sm"><i class="bi bi-hourglass-split"></i></div>
             </div>
         </div>
+        </div>
+    </div>
+
+    <!-- ==================== LIVE S&D DASHBOARD ==================== -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark" id="sd-gta">--</div>
+                    <div class="stat-label">S&D Ratio (GTa)</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-bar-chart-fill"></i></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark" id="sd-gte">--</div>
+                    <div class="stat-label">S&D Ratio (GTe)</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-bar-chart-fill"></i></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-danger" id="ghost-opps">--</div>
+                    <div class="stat-label">Ghost Opportunities</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-orange shadow-sm"><i class="bi bi-ghost"></i></div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-danger" id="cold-eps">--</div>
+                    <div class="stat-label">Cold EPs</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-orange shadow-sm"><i class="bi bi-snow"></i></div>
+            </div>
+        </div>
     </div>
 
     <div class="row g-4">
@@ -807,6 +848,30 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 });
+</script>
+{% endif %}
+
+{% if active_area == 'ALL' %}
+<script>
+// Fetch live S&D metrics
+fetch("{% url 'api_sd_ratio' %}")
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('sd-gta').textContent = data.gta.ratio.toFixed(2) + 'x';
+        document.getElementById('sd-gte').textContent = data.gte.ratio.toFixed(2) + 'x';
+    }).catch(() => {});
+
+fetch("{% url 'api_ghost_opps' %}")
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('ghost-opps').textContent = data.ghost_opps;
+    }).catch(() => {});
+
+fetch("{% url 'api_cold_eps' %}")
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('cold-eps').textContent = data.cold_eps;
+    }).catch(() => {});
 </script>
 {% endif %}
 

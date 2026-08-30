@@ -279,6 +279,7 @@ def ep_detail(request, pk):
     prev_history = ep.stage_history.exclude(stage=ep.current_stage).order_by("-changed_at").first()
     previous_stage = prev_history.stage if prev_history else None
 
+    member = request.current_member
     context = {
         "ep": ep,
         "stage_history": stage_history,
@@ -291,6 +292,8 @@ def ep_detail(request, pk):
         "prereq_status": prereq_status,
         "previous_stage": previous_stage,
         "allowed_stages": allowed_stages,
+        "can_see_contact": member.can_see_ep_contact(ep),
+        "can_edit_ep": member.can_edit_ep(ep),
     }
     return render(request, "ops/ep_detail.html", context)
 
