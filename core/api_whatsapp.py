@@ -3,7 +3,10 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
+from django.conf import settings
 from ops.models import EP
+import hmac
+import hashlib
 
 def send_whatsapp_message(phone_number, message_body):
     """
@@ -39,6 +42,20 @@ class WhatsAppWebhookView(View):
         return JsonResponse({"status": "ok"})
 
     def post(self, request, *args, **kwargs):
+        # HMAC Signature Validation
+        signature = request.headers.get("X-Hub-Signature-256", "")
+        secret = getattr(settings, "WHATSAPP_WEBHOOK_SECRET", "")
+        
+        if secret:
+            expected_signature = "sha256=" + hmac.new(
+                secret.encode("utf-8"),
+                request.body,
+                hashlib.sha256
+            ).hexdigest()
+            
+            if not hmac.compare_digest(signature, expected_signature):
+                return JsonResponse({"status": "error", "message": "Invalid signature"}, status=403)
+                
         try:
             # Try parsing JSON (Meta API style)
             data = json.loads(request.body)

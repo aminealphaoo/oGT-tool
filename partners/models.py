@@ -74,46 +74,45 @@ class IR(models.Model):
     @property
     def approved_count(self) -> int:
         """Number of EPs matched to this IR's opportunities who are at 'approved' or beyond."""
-        from ops.models import EP
-
+        from ops.models import EP, MatchRecord
         opp_ids = self.opportunities.values_list("id", flat=True)
+        ep_ids = MatchRecord.objects.filter(
+            opportunity_id__in=opp_ids,
+            status__in=['approved', 'interview_scheduled']
+        ).values_list('ep_id', flat=True)
         return EP.objects.filter(
-            matched_opportunity_id__in=opp_ids,
+            pk__in=ep_ids,
             current_stage__in=["approved", "all_papers_done", "not_all_papers_done", "do_papers", "realized"],
         ).count()
 
     @property
     def realized_count(self) -> int:
         """Number of EPs realized through this IR."""
-        from ops.models import EP
-
+        from ops.models import EP, MatchRecord
         opp_ids = self.opportunities.values_list("id", flat=True)
-        return EP.objects.filter(
-            matched_opportunity_id__in=opp_ids,
-            current_stage="realized",
-        ).count()
+        ep_ids = MatchRecord.objects.filter(
+            opportunity_id__in=opp_ids,
+            status__in=['approved', 'interview_scheduled']
+        ).values_list('ep_id', flat=True)
+        return EP.objects.filter(pk__in=ep_ids, current_stage="realized").count()
 
     @property
     def total_matched(self) -> int:
-        from ops.models import EP
-
+        from ops.models import MatchRecord
         opp_ids = self.opportunities.values_list("id", flat=True)
-        return EP.objects.filter(matched_opportunity_id__in=opp_ids).count()
+        return MatchRecord.objects.filter(opportunity_id__in=opp_ids).count()
 
     @property
     def rejection_rate(self) -> float:
-        """Approximate rejection rate: (applied but not accepted) / total applied."""
-        from ops.models import EP
-
+        """Approximate rejection rate: rejected MatchRecords / total MatchRecords."""
+        from ops.models import MatchRecord
         opp_ids = self.opportunities.values_list("id", flat=True)
-        total = EP.objects.filter(matched_opportunity_id__in=opp_ids).count()
+        total = MatchRecord.objects.filter(opportunity_id__in=opp_ids).count()
         if total == 0:
             return 0.0
-        # Count EPs that went through this IR that ended up not accepted
-        rejected = EP.objects.filter(
-            matched_opportunity_id__in=opp_ids,
-        ).exclude(
-            current_stage__in=["accepted", "approved", "all_papers_done", "not_all_papers_done", "do_papers", "realized"],
+        rejected = MatchRecord.objects.filter(
+            opportunity_id__in=opp_ids,
+            status='rejected'
         ).count()
         return round(rejected / total * 100, 1)
 
@@ -127,11 +126,13 @@ class IR(models.Model):
         from ops.models import EP, StageHistory
 
         opp_ids = self.opportunities.values_list("id", flat=True)
-        eps = EP.objects.filter(matched_opportunity_id__in=opp_ids)
+        eps_via_match = EP.objects.filter(
+            match_records__opportunity_id__in=opp_ids
+        ).distinct()
 
         total_days = 0
         count = 0
-        for ep in eps:
+        for ep in eps_via_match:
             matched = StageHistory.objects.filter(
                 ep=ep, stage="matched_with_opp"
             ).order_by("changed_at").first()
@@ -175,12 +176,36 @@ class Opportunity(models.Model):
     experience_level_required = models.CharField(max_length=50, blank=True, choices=[('Junior','Junior'),('Intermédiaire','Intermédiaire'),('Senior','Senior')])
     duration_months = models.PositiveIntegerField(null=True, blank=True, help_text="Durée du stage en mois")
     keywords = models.TextField(blank=True, help_text="Mots-clés du poste séparés par des virgules")
+    capacity = models.PositiveIntegerField(default=1)
+    is_ghost = models.BooleanField(
+        default=False,
+        help_text="Auto-flagged when IR partner has gone silent (no activity for 60 days)"
+    )
+    last_confirmed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Last time IR partner confirmed the opportunity is still active"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     @property
     def matched_eps_count(self):
         # Counts MatchRecords where status != Withdrawn/Rejected
         return self.match_records.exclude(status__in=["rejected", "withdrawn"]).count()
+        
+    @property
+    def remaining_slots(self):
+        approved_count = self.match_records.filter(status='approved').count()
+        return max(0, self.capacity - approved_count)
+    
+    @property
+    def is_full(self):
+        return self.remaining_slots == 0
+
+    def save(self, *args, **kwargs):
+        if self.pk and self.is_full and self.is_open:
+            self.is_open = False
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ["-is_open", "-created_at"]
         verbose_name_plural = "Opportunities"

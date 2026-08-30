@@ -31,7 +31,7 @@ class EPForm(forms.ModelForm):
         fields = [
             "full_name", "phone", "email", "socials",
             "university", "major", "year_of_study",
-            "track", "current_stage", "assigned_to", "matched_opportunity", "term",
+            "track", "current_stage", "assigned_to", "term",
             # Profile fields for matching
             "study_field", "study_level", "experience_level",
             "availability_date", "duration_preference", "keywords",

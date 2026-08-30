@@ -251,13 +251,29 @@ def ep_list(request):
 
 def ep_detail(request, pk):
     """EP profile: all fields, stage history, interaction log, attachments."""
-    ep = get_object_or_404(
-        EP.objects.select_related("assigned_to", "matched_opportunity__ir"),
-        pk=pk,
-    )
+    member = request.current_member
 
-    if not request.current_member.can_view_ep(ep):
-        return render(request, "403.html", status=403)
+    # Base queryset filtered by role
+    if member.is_vp():
+        ep = get_object_or_404(EP.objects.select_related("assigned_member"), pk=pk)
+    elif member.is_tl():
+        # TL sees EPs assigned to their team
+        ep = get_object_or_404(
+            EP.objects.filter(assigned_member__team=member.team).select_related("assigned_member"),
+            pk=pk
+        )
+    elif member.role == 'IR':
+        # IR sees EP profiles in open/progress stages
+        ep = get_object_or_404(
+            EP.objects.filter(current_stage__in=['open','applied','matched_with_opp','accepted']).select_related("assigned_member"),
+            pk=pk
+        )
+    else:
+        # Regular member: own EPs only
+        ep = get_object_or_404(
+            EP.objects.filter(assigned_member=member).select_related("assigned_member"),
+            pk=pk
+        )
 
     stage_history = ep.stage_history.select_related("changed_by")
     interactions = ep.interactions.select_related("author")
@@ -282,7 +298,6 @@ def ep_detail(request, pk):
     prev_history = ep.stage_history.exclude(stage=ep.current_stage).order_by("-changed_at").first()
     previous_stage = prev_history.stage if prev_history else None
 
-    member = request.current_member
     context = {
         "ep": ep,
         "stage_history": stage_history,
@@ -297,6 +312,7 @@ def ep_detail(request, pk):
         "allowed_stages": allowed_stages,
         "can_see_contact": member.can_see_ep_contact(ep),
         "can_edit_ep": member.can_edit_ep(ep),
+        "hide_sensitive": member.role == 'IR',
     }
     return render(request, "ops/ep_detail.html", context)
 
@@ -1309,13 +1325,24 @@ def match_lab(request):
         is_archived=False,
     ).select_related("assigned_to", "matched_opportunity__ir").order_by("-last_activity_at")[:10]
 
-    # Top Opportunities: open and not ghost (has recent activity)
-    from django.db.models import Count
-    open_opps = Opportunity.objects.filter(
-        is_open=True
-    ).annotate(
-        match_count=Count("match_records")
-    ).select_related("ir").order_by("created_at")[:10]
+    # If an EP is selected, rank opportunities
+    ep_id = request.GET.get('ep_id')
+    selected_ep = None
+    ranked_opps = []
+    
+    if ep_id:
+        from .matching import get_ranked_opportunities_for_ep
+        selected_ep = get_object_or_404(EP, pk=ep_id)
+        ranked_opps = get_ranked_opportunities_for_ep(selected_ep)
+        # We can still pass open_opps as the top 10 from the ranked list
+        open_opps = [r['opportunity'] for r in ranked_opps[:10]]
+    else:
+        from django.db.models import Count
+        open_opps = Opportunity.objects.filter(
+            is_open=True
+        ).annotate(
+            match_count=Count("match_records")
+        ).select_related("ir").order_by("-created_at")[:10]
 
     # Recent match records (for activity feed)
     recent_matches = MatchRecord.objects.select_related(
@@ -1327,6 +1354,8 @@ def match_lab(request):
         "open_opps": open_opps,
         "recent_matches": recent_matches,
         "current_member": member,
+        "selected_ep": selected_ep,
+        "ranked_opps": ranked_opps,
     }
     return render(request, "ops/match_lab.html", context)
 

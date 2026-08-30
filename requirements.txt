@@ -7,3 +7,5 @@ redis>=5.1
 python-decouple>=3.8
 dj-database-url>=2.3
 django-sslserver
+cloudinary>=1.40
+django-cloudinary-storage>=0.3.0

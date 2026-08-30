@@ -39,8 +39,13 @@ INSTALLED_APPS = [
     "partners",
     "dashboard",
     "automation",
-    "django_extensions",
+    "cloudinary",
+    "cloudinary_storage",
 ]
+
+# Dev-only apps
+if DEBUG:
+    INSTALLED_APPS += ["django_extensions"]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -112,14 +117,33 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
+# ── Static & Media Storage ───────────────────────────────────────────
+CLOUDINARY_URL = config("CLOUDINARY_URL", default="")
+
+if CLOUDINARY_URL and not DEBUG:
+    # Production: serve media (uploads) via Cloudinary CDN
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
+    cloudinary.config(cloudinary_url=CLOUDINARY_URL)
+    STORAGES = {
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+else:
+    # Development or no Cloudinary: use local filesystem
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 # ── Default primary key field ─────────────────────────────────────────
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -151,15 +175,16 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # ── Email ──────────────────────────────────────────────────────────────
-# Default: SMTP via Brevo (free tier — 300 emails/day).
+# Default: SMTP via Google Workspace (Gmail).
 # Falls back to console backend if no SMTP credentials are set.
 EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = config("EMAIL_HOST", default="smtp-relay.brevo.com")
+EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
-EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
-EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="aminebenattaya@aiesec.net")
+# IMPORTANT: You must generate an App Password in your Google Account for this to work
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="zmzszzqispbfjmdg")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@aiesec-carthage.org")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="aminebenattaya@aiesec.net")
 
 # ── AIESEC LC Carthage config (overridable via SiteConfig model) ──────
 LC_NAME = "AIESEC LC Carthage"

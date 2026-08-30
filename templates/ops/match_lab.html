@@ -109,7 +109,8 @@
     <div class="ep-card" id="ep-{{ ep.pk }}">
       <div>
         <div class="ep-name">
-          <a href="{% url 'ep_detail' ep.pk %}" class="text-decoration-none text-inherit">{{ ep.full_name }}</a>
+          <a href="?ep_id={{ ep.pk }}" class="text-decoration-none text-inherit {% if selected_ep and selected_ep.pk == ep.pk %}fw-bold text-primary{% endif %}">{{ ep.full_name }}</a>
+          <a href="{% url 'ep_detail' ep.pk %}" class="text-muted ms-1" style="font-size:0.7rem;" title="View Profile">(Profile <i class="bi bi-box-arrow-up-right"></i>)</a>
         </div>
         <div class="ep-meta">
           <span class="panel-badge badge track-badge-{{ ep.track|lower }}">{{ ep.get_track_display }}</span>
@@ -143,21 +144,51 @@
       <h5>Open Opportunities</h5>
       <span class="panel-badge badge track-badge-gte">{{ open_opps|length }}</span>
     </div>
-    {% for opp in open_opps %}
-    <div class="opp-card" id="opp-{{ opp.pk }}">
-      <div>
-        <div class="opp-title">{{ opp.title|default:opp.ir.entity_name }}</div>
-        <div class="opp-meta">
-          <span class="panel-badge badge track-badge-{{ opp.track|lower }}">{{ opp.get_track_display }}</span>
-          {{ opp.ir.entity_name }} · {{ opp.ir.country }}
-          · {{ opp.match_count }} match{{ opp.match_count|pluralize:"es" }}
-        </div>
+    {% if selected_ep %}
+      <div class="alert alert-info py-2 small mb-3">
+        Showing ranked matches for <strong>{{ selected_ep.full_name }}</strong>. 
+        <a href="?" class="alert-link ms-2">Clear</a>
       </div>
-      <a href="{% url 'ir_detail' opp.ir.pk %}" class="text-secondary" style="font-size:.75rem">View →</a>
-    </div>
-    {% empty %}
-    <div class="text-center text-muted py-4" style="font-size:.85rem">No open opportunities.</div>
-    {% endfor %}
+      {% for rank in ranked_opps %}
+      <div class="opp-card border-start border-success border-4" id="opp-{{ rank.opportunity.pk }}">
+        <div>
+          <div class="opp-title">{{ rank.opportunity.title|default:rank.opportunity.ir.entity_name }}</div>
+          <div class="opp-meta">
+            <span class="badge bg-success text-white">Score: {{ rank.score }}</span>
+            <span class="panel-badge badge track-badge-{{ rank.opportunity.track|lower }}">{{ rank.opportunity.get_track_display }}</span>
+            {{ rank.opportunity.ir.entity_name }} · {{ rank.opportunity.ir.country }}
+          </div>
+          <div class="mt-1" style="font-size:0.7rem; color:#666;">
+            {% for item in rank.breakdown %}
+              <span class="me-1">✓ {{ item }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        <form method="post" action="{% url 'match_propose' selected_ep.pk rank.opportunity.pk %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size:0.75rem;">Propose Match</button>
+        </form>
+      </div>
+      {% empty %}
+      <div class="text-center text-muted py-4" style="font-size:.85rem">No matching opportunities found.</div>
+      {% endfor %}
+    {% else %}
+      {% for opp in open_opps %}
+      <div class="opp-card" id="opp-{{ opp.pk }}">
+        <div>
+          <div class="opp-title">{{ opp.title|default:opp.ir.entity_name }}</div>
+          <div class="opp-meta">
+            <span class="panel-badge badge track-badge-{{ opp.track|lower }}">{{ opp.get_track_display }}</span>
+            {{ opp.ir.entity_name }} · {{ opp.ir.country }}
+            · {{ opp.match_count }} match{{ opp.match_count|pluralize:"es" }}
+          </div>
+        </div>
+        <a href="{% url 'ir_detail' opp.ir.pk %}" class="text-secondary" style="font-size:.75rem">View →</a>
+      </div>
+      {% empty %}
+      <div class="text-center text-muted py-4" style="font-size:.85rem">No open opportunities.</div>
+      {% endfor %}
+    {% endif %}
   </div>
 </div>
 

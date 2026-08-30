@@ -41,7 +41,7 @@
                             <div class="fw-bold">{{ m.name }}</div>
                         </td>
                         <td>
-                            <code class="text-dark">{{ m.user.username }}</code>
+                            <code>{{ m.user.username }}</code>
                         </td>
                         <td>
                             <span class="badge {% if m.role == 'VP' %}bg-danger{% elif m.role == 'TL' %}bg-warning text-dark{% elif m.role == 'IR' %}bg-success{% else %}bg-primary{% endif %}">

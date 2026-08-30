@@ -86,20 +86,22 @@ class EP(models.Model):
         help_text="The functional Key Area team managing this EP",
     )
     assigned_member = models.ForeignKey(
-        Member,
+        "members.Member",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="my_eps",
         help_text="The specific member assigned to manage this EP",
     )
-    matched_opportunity = models.ForeignKey(
-        "partners.Opportunity",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="matched_eps",
-    )
+    
+    @property
+    def matched_opportunity(self):
+        match = self.match_records.filter(status__in=['Proposed','Interview Scheduled','Approved']).first()
+        return match.opportunity if match else None
+
+    @property
+    def match_history(self):
+        return self.match_records.order_by('created_at')
 
     # ── Acquisition Sources (Marketing & Comms) ───────────────────────
     acquisition_source = models.CharField(
@@ -240,6 +242,13 @@ class EP(models.Model):
             note=f"Reverted from {EP.Stage(old_stage).label}" + (f" — {note}" if note else ""),
         )
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["current_stage", "is_archived"], name="ep_stage_archived_idx"),
+            models.Index(fields=["track", "current_stage"], name="ep_track_stage_idx"),
+            models.Index(fields=["assigned_member", "current_stage"], name="ep_member_stage_idx"),
+            models.Index(fields=["-last_activity_at", "is_archived"], name="ep_last_activity_idx"),
+        ]
 
 class StageHistory(models.Model):
     """Audit trail of EP stage changes — powers funnel reporting."""
@@ -573,6 +582,12 @@ class MatchRecord(models.Model):
     def is_fully_approved(self):
         return self.approved_by_ir_tl and self.approved_by_product_tl
 
+    def clean(self):
+        super().clean()
+        if self.status == self.Status.REJECTED and not self.rejection_reason:
+            from django.core.exceptions import ValidationError
+            raise ValidationError({'rejection_reason': 'Rejection reason is required when status is Rejected.'})
+
     def __str__(self):
         return f"{self.ep.full_name} -> {self.opportunity.title} ({self.get_status_display()})"
 
@@ -719,3 +734,50 @@ class ContentCalendar(models.Model):
 
     def __str__(self):
         return f"[{self.get_type_display()}] {self.title} ({self.get_status_display()})"
+
+
+class WelfareCheck(models.Model):
+    """
+    Time-series CXP welfare data per EP.
+    Each row is a snapshot at a point in time — enables trend tracking across the exchange lifecycle.
+    """
+    class Mood(models.IntegerChoices):
+        VERY_BAD = 1, "Very Bad 😢"
+        BAD = 2, "Bad 😞"
+        NEUTRAL = 3, "Neutral 😐"
+        GOOD = 4, "Good 😊"
+        VERY_GOOD = 5, "Very Good 😄"
+
+    class CheckType(models.TextChoices):
+        WEEKLY = "weekly", "Weekly Check-in"
+        ARRIVAL = "arrival", "Arrival Check"
+        MIDTERM = "midterm", "Mid-term Review"
+        COMPLETION = "completion", "Completion Review"
+        EMERGENCY = "emergency", "Emergency Flag"
+
+    ep = models.ForeignKey(
+        EP,
+        on_delete=models.CASCADE,
+        related_name="welfare_checks",
+    )
+    checked_by = models.ForeignKey(
+        "members.Member",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="welfare_checks_conducted",
+    )
+    check_type = models.CharField(max_length=20, choices=CheckType.choices, default=CheckType.WEEKLY)
+    mood_score = models.IntegerField(choices=Mood.choices, null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+    host_issues = models.BooleanField(default=False, help_text="Is there a problem with the host entity?")
+    ep_issues = models.BooleanField(default=False, help_text="Is the EP experiencing personal difficulties?")
+    needs_intervention = models.BooleanField(default=False, help_text="Flag for immediate CXP escalation")
+    checked_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-checked_at"]
+        verbose_name = "Welfare Check"
+        verbose_name_plural = "Welfare Checks"
+
+    def __str__(self):
+        return f"{self.ep.full_name} — {self.get_check_type_display()} @ {self.checked_at:%Y-%m-%d}"

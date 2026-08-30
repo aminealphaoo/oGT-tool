@@ -24,6 +24,7 @@
         height: 300px;
         background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
         border-radius: 50%;
+        pointer-events: none;
     }
 
     .area-selector {
@@ -184,7 +185,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_eps }}</div>
+                    <div class="stat-display">{{ total_eps }}</div>
                     <div class="stat-label">Total EPs</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-people"></i></div>
@@ -193,7 +194,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_realized }}</div>
+                    <div class="stat-display">{{ total_realized }}</div>
                     <div class="stat-label">Realized EPs</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-green shadow-sm"><i class="bi bi-check-circle"></i></div>
@@ -202,7 +203,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_problems }}</div>
+                    <div class="stat-display">{{ total_problems }}</div>
                     <div class="stat-label">Problem Cases</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-orange shadow-sm"><i class="bi bi-exclamation-triangle"></i></div>
@@ -211,7 +212,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_stale }}</div>
+                    <div class="stat-display">{{ total_stale }}</div>
                     <div class="stat-label">Stale Cases</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-yellow shadow-sm"><i class="bi bi-hourglass-split"></i></div>
@@ -225,7 +226,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark" id="sd-gta">--</div>
+                    <div class="stat-display" id="sd-gta">--</div>
                     <div class="stat-label">S&D Ratio (GTa)</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-bar-chart-fill"></i></div>
@@ -234,7 +235,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark" id="sd-gte">--</div>
+                    <div class="stat-display" id="sd-gte">--</div>
                     <div class="stat-label">S&D Ratio (GTe)</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-bar-chart-fill"></i></div>
@@ -264,7 +265,7 @@
         <div class="col-lg-8">
             <div class="premium-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
-                    <h5 class="fw-bold mb-0 text-dark">EP Pipeline Funnel</h5>
+                    <h5 class="fw-bold mb-0">EP Pipeline Funnel</h5>
                 </div>
                 <div class="card-body px-4 pb-4 pt-2">
                     <canvas id="funnelChart" height="250"></canvas>
@@ -274,7 +275,7 @@
         <div class="col-lg-4">
             <div class="premium-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
-                    <h5 class="fw-bold mb-0 text-dark">Area Distribution</h5>
+                    <h5 class="fw-bold mb-0">Area Distribution</h5>
                 </div>
                 <div class="card-body p-0 mt-2">
                     <ul class="list-group list-group-flush list-group-premium">
@@ -296,7 +297,7 @@
         <div class="col-md-4">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ campaigns_count }}</div>
+                    <div class="stat-display">{{ campaigns_count }}</div>
                     <div class="stat-label">Active Campaigns</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-bullseye"></i></div>
@@ -305,7 +306,7 @@
         <div class="col-md-4">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_leads }}</div>
+                    <div class="stat-display">{{ total_leads }}</div>
                     <div class="stat-label">Leads Generated</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-cyan shadow-sm"><i class="bi bi-person-lines-fill"></i></div>
@@ -314,7 +315,7 @@
         <div class="col-md-4">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_conversions }}</div>
+                    <div class="stat-display">{{ total_conversions }}</div>
                     <div class="stat-label">EP Conversions</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-green shadow-sm"><i class="bi bi-graph-up-arrow"></i></div>
@@ -326,7 +327,7 @@
         <div class="col-lg-6">
             <div class="premium-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
-                    <h5 class="fw-bold mb-0 text-dark">Lead Stage Tracking</h5>
+                    <h5 class="fw-bold mb-0">Lead Stage Tracking</h5>
                 </div>
                 <div class="card-body px-4 pb-4 pt-3">
                     <div class="d-flex flex-column gap-4 mt-2">
@@ -349,7 +350,7 @@
         <div class="col-lg-6">
             <div class="premium-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
-                    <h5 class="fw-bold mb-0 text-dark">Marketing Campaigns</h5>
+                    <h5 class="fw-bold mb-0">Marketing Campaigns</h5>
                     <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3" data-bs-toggle="modal" data-bs-target="#newCampaignModal">
                         <i class="bi bi-plus"></i> New Campaign
                     </button>
@@ -396,7 +397,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_eps }}</div>
+                    <div class="stat-display">{{ total_eps }}</div>
                     <div class="stat-label">Product EPs</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-person-workspace"></i></div>
@@ -405,7 +406,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ open_matching_count }}</div>
+                    <div class="stat-display">{{ open_matching_count }}</div>
                     <div class="stat-label">In Matching Queue</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-orange shadow-sm"><i class="bi bi-magic"></i></div>
@@ -414,7 +415,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ realized_count }}</div>
+                    <div class="stat-display">{{ realized_count }}</div>
                     <div class="stat-label">Realized Stages</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-green shadow-sm"><i class="bi bi-check-all"></i></div>
@@ -423,7 +424,7 @@
         <div class="col-md-3">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ stale_count }}</div>
+                    <div class="stat-display">{{ stale_count }}</div>
                     <div class="stat-label">Stale Cases</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-yellow shadow-sm"><i class="bi bi-clock-history"></i></div>
@@ -435,7 +436,7 @@
         <div class="col-lg-7">
             <div class="premium-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
-                    <h5 class="fw-bold mb-0 text-dark">Active Product Pipeline</h5>
+                    <h5 class="fw-bold mb-0">Active Product Pipeline</h5>
                 </div>
                 <div class="card-body px-4 pt-3 pb-4">
                     <div class="table-responsive">
@@ -509,7 +510,7 @@
         <div class="col-md-4">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_irs }}</div>
+                    <div class="stat-display">{{ total_irs }}</div>
                     <div class="stat-label">Active IR Partners</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-building"></i></div>
@@ -518,7 +519,7 @@
         <div class="col-md-4">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_opps }}</div>
+                    <div class="stat-display">{{ total_opps }}</div>
                     <div class="stat-label">Open Opportunities</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-cyan shadow-sm"><i class="bi bi-briefcase"></i></div>
@@ -527,7 +528,7 @@
         <div class="col-md-4">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ realized_irs }}</div>
+                    <div class="stat-display">{{ realized_irs }}</div>
                     <div class="stat-label">Realizations</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-green shadow-sm"><i class="bi bi-airplane"></i></div>
@@ -539,7 +540,7 @@
         <div class="col-lg-8">
             <div class="premium-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
-                    <h5 class="fw-bold mb-0 text-dark">Partner Performance Matrix</h5>
+                    <h5 class="fw-bold mb-0">Partner Performance Matrix</h5>
                 </div>
                 <div class="card-body px-4 pt-3 pb-4">
                     <div class="table-responsive">
@@ -581,7 +582,7 @@
         <div class="col-lg-4">
             <div class="premium-card h-100">
                 <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
-                    <h5 class="fw-bold mb-0 text-dark">Geographical Reach</h5>
+                    <h5 class="fw-bold mb-0">Geographical Reach</h5>
                 </div>
                 <div class="card-body p-4 mt-2">
                     <div class="d-flex flex-column gap-2">
@@ -605,7 +606,7 @@
         <div class="col-md-4">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ total_contracts }}</div>
+                    <div class="stat-display">{{ total_contracts }}</div>
                     <div class="stat-label">Legal Contracts</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-file-earmark-text"></i></div>
@@ -623,7 +624,7 @@
         <div class="col-md-4">
             <div class="premium-card premium-stat">
                 <div class="stat-content">
-                    <div class="stat-display text-dark">{{ pending_payments_count }}</div>
+                    <div class="stat-display">{{ pending_payments_count }}</div>
                     <div class="stat-label">Pending Payments</div>
                 </div>
                 <div class="stat-icon-bg bg-gradient-yellow shadow-sm"><i class="bi bi-cash-stack"></i></div>
@@ -704,7 +705,7 @@
         <div class="col-12">
             <div class="premium-card">
                 <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
-                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-list-task text-primary me-2"></i>Scoped Tasks & Action Items</h5>
+                    <h5 class="fw-bold mb-0"><i class="bi bi-list-task text-primary me-2"></i>Scoped Tasks & Action Items</h5>
                     <a href="/tasks/" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm">View All Tasks</a>
                 </div>
                 <div class="card-body px-4 pt-3 pb-4">
