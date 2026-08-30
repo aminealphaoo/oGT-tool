@@ -76,7 +76,7 @@ def ir_detail(request, pk):
 
     eps_linked = EP.objects.filter(
         matched_opportunity__ir=ir
-    ).select_related("assigned_to", "matched_opportunity")
+    ).select_related("assigned_to")
 
     opp_form = OpportunityForm(initial={"ir": ir})
 

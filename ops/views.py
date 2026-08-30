@@ -164,7 +164,7 @@ def _paginate(request, queryset, default_per_page=50):
 def ep_list(request):
     """Filterable EP table with pagination."""
     member = request.current_member
-    eps = member.get_visible_eps().select_related("assigned_to", "matched_opportunity__ir")
+    eps = member.get_visible_eps().select_related("assigned_to")
 
     # ── Archive filter ────────────────────────────────────────────────
     show_archived = request.GET.get("archived", "") == "1"
@@ -641,7 +641,7 @@ def ep_export_csv(request):
     from django.http import HttpResponse
 
     member = request.current_member
-    eps = member.get_visible_eps().select_related("assigned_to", "matched_opportunity__ir")
+    eps = member.get_visible_eps().select_related("assigned_to")
 
     track = request.GET.get("track", "")
     stage = request.GET.get("stage", "")
@@ -699,7 +699,7 @@ def problem_list(request):
     member = request.current_member
     eps = member.get_visible_eps().filter(
         problem_flag__in=["fix_ep_problem", "fix_ir_problem"]
-    ).select_related("assigned_to", "matched_opportunity__ir")
+    ).select_related("assigned_to")
 
     # Filters
     track = request.GET.get("track", "")
@@ -883,7 +883,7 @@ def matching(request):
             dj_models.Q(matched_opportunity__isnull=True)
             | dj_models.Q(current_stage="open")
         )
-        .select_related("assigned_to", "matched_opportunity__ir")
+        .select_related("assigned_to")
         .order_by("-last_activity_at")
     )
 
@@ -1323,7 +1323,7 @@ def match_lab(request):
     ready_eps = EP.objects.filter(
         current_stage__in=["open", "matched_with_opp"],
         is_archived=False,
-    ).select_related("assigned_to", "matched_opportunity__ir").order_by("-last_activity_at")[:10]
+    ).select_related("assigned_to").order_by("-last_activity_at")[:10]
 
     # If an EP is selected, rank opportunities
     ep_id = request.GET.get('ep_id')
@@ -1421,7 +1421,7 @@ def cxp_delivery(request):
     eps = EP.objects.filter(
         current_stage__in=CXP_STAGES,
         is_archived=False,
-    ).select_related("assigned_to", "matched_opportunity__ir").prefetch_related(
+    ).select_related("assigned_to").prefetch_related(
         "delivery_checklist", "handoffs"
     ).order_by("current_stage", "last_activity_at")
 

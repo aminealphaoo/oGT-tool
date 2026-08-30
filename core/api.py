@@ -29,7 +29,7 @@ def api_health(request):
 
 def api_eps(request):
     """List EPs as JSON. Supports same filters as the web EP list."""
-    eps = EP.objects.filter(is_archived=False).select_related("assigned_to", "matched_opportunity__ir")
+    eps = EP.objects.filter(is_archived=False).select_related("assigned_to")
 
     track = request.GET.get("track", "")
     stage = request.GET.get("stage", "")
