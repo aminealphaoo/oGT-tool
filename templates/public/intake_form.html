@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AIESEC oGT Intake</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #0a0f1e; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    .hero { background: linear-gradient(135deg, #1a1f3a 0%, #0d1127 100%); padding: 3rem 1.5rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .hero h1 { font-weight: 800; color: #fff; margin-bottom: .5rem; }
+    .hero p { color: #94a3b8; font-size: 1.1rem; }
+    .form-card { background: #111827; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 2rem; max-width: 600px; margin: -2rem auto 3rem; position: relative; z-index: 10; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    .form-control, .form-select { background: #1e293b; border: 1px solid #334155; color: #f8fafc; border-radius: 8px; padding: .6rem 1rem; }
+    .form-control:focus, .form-select:focus { background: #1e293b; border-color: #6366f1; color: #fff; box-shadow: 0 0 0 3px rgba(99,102,241,0.2); }
+    label { font-size: .85rem; font-weight: 600; color: #94a3b8; margin-bottom: .4rem; }
+    .btn-primary { background: linear-gradient(90deg, #6366f1, #4f46e5); border: none; padding: .7rem 1.5rem; font-weight: 600; border-radius: 8px; width: 100%; transition: opacity .2s; }
+    .btn-primary:hover { opacity: 0.9; }
+    .nav-pills .nav-link { color: #94a3b8; border-radius: 8px; font-size: .9rem; font-weight: 600; padding: .6rem 1.2rem; }
+    .nav-pills .nav-link.active { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>AIESEC oGT Connect</h1>
+  <p>Start your professional journey or share your success story.</p>
+</div>
+
+<div class="container">
+  <div class="form-card">
+    
+    {% if messages %}
+    <div class="mb-4">
+      {% for msg in messages %}
+      <div class="alert alert-{{ msg.tags|default:'info' }} py-2">{{ msg }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <ul class="nav nav-pills mb-4 justify-content-center" id="pills-tab" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="pills-apply-tab" data-bs-toggle="pill" data-bs-target="#pills-apply" type="button" role="tab">Apply for oGT</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="pills-testimonial-tab" data-bs-toggle="pill" data-bs-target="#pills-testimonial" type="button" role="tab">Share Testimonial</button>
+      </li>
+    </ul>
+
+    <div class="tab-content" id="pills-tabContent">
+      <!-- EP Form -->
+      <div class="tab-pane fade show active" id="pills-apply" role="tabpanel">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="form_type" value="ep">
+          <div class="mb-3">
+            <label>Full Name</label>
+            {{ ep_form.full_name }}
+          </div>
+          <div class="mb-3">
+            <label>Email</label>
+            {{ ep_form.email }}
+          </div>
+          <div class="mb-3">
+            <label>Phone</label>
+            {{ ep_form.phone }}
+          </div>
+          <div class="mb-3">
+            <label>University / Background</label>
+            {{ ep_form.university }}
+          </div>
+          <div class="mb-3">
+            <label>Program Track</label>
+            {{ ep_form.track }}
+          </div>
+          <button type="submit" class="btn btn-primary">Submit Application</button>
+        </form>
+      </div>
+
+      <!-- Testimonial Form -->
+      <div class="tab-pane fade" id="pills-testimonial" role="tabpanel">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="form_type" value="testimonial">
+          <div class="mb-3">
+            <label>Your Full Name</label>
+            {{ test_form.ancient_ep_name }}
+          </div>
+          <div class="mb-3">
+            <label>Email Address</label>
+            {{ test_form.ancient_ep_email }}
+          </div>
+          <div class="mb-3">
+            <label>Share Your Experience</label>
+            {{ test_form.content }}
+          </div>
+          <div class="mb-4">
+            <label>Video Link (Optional)</label>
+            {{ test_form.video_url }}
+          </div>
+          <button type="submit" class="btn btn-primary">Submit Testimonial</button>
+        </form>
+      </div>
+    </div>
+    
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

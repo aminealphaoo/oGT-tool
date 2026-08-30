@@ -12,10 +12,12 @@ from ops.urls_eps import (
     match_lab_patterns, cxp_patterns, brand_patterns,
 )
 
+from core.api_whatsapp import WhatsAppWebhookView
 from core.api import api_eps, api_health, api_irs, api_stats
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("public/", include("ops.urls_public")),
     path("", include("dashboard.urls")),
     path("members/", include("members.urls")),
     path("eps/", include("ops.urls_eps")),
@@ -33,6 +35,7 @@ urlpatterns = [
     path("api/eps/", api_eps, name="api_eps"),
     path("api/irs/", api_irs, name="api_irs"),
     path("api/stats/", api_stats, name="api_stats"),
+    path("api/whatsapp/webhook/", WhatsAppWebhookView.as_view(), name="whatsapp_webhook"),
 ]
 
 if settings.DEBUG:
