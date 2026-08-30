@@ -89,6 +89,7 @@ def dashboard(request):
             # Try to get count based on the assigned member's team (modern approach)
             count = eps.filter(
                 Q(assigned_member__team__key_area=code) | 
+                Q(assigned_to__team__key_area=code) |
                 Q(assigned_area__key_area=code)
             ).distinct().count()
             area_distributions.append({"name": label, "count": count})
