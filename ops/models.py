@@ -279,10 +279,16 @@ class Attachment(models.Model):
     """Contracts, ID scans, papers — attached to an EP."""
 
     class Label(models.TextChoices):
-        CONTRACT = "contract", "Contract"
-        PASSPORT = "passport", "Passport / ID"
         CV = "cv", "CV"
-        ACCEPTANCE = "acceptance", "Acceptance Letter"
+        CONTRACT = "contract", "Contract"
+        APPROVAL_MAIL = "approval_mail", "Approval mail"
+        ACCEPTANCE_MAIL = "acceptance_mail", "Acceptance mail"
+        HEALTH_INSURANCE = "health_insurance", "Health insurance"
+        GOAL_SETTING = "goal_setting", "Goal setting before realization"
+        OPS_INVITATION = "ops_invitation", "OPS invitation"
+        OPS_DELIVERY = "ops_delivery", "OPS delivery"
+        COMMUNICATION = "communication", "Communication with EP"
+        DEBRIEF = "debrief", "Debrief"
         OTHER = "other", "Other"
 
     ep = models.ForeignKey(EP, on_delete=models.CASCADE, related_name="attachments")

@@ -1,87 +1,246 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — {{ lc_name }}{% endblock %}
 
+{% block extra_head %}
+<style>
+    /* Premium Dashboard UI Overrides */
+    .dashboard-header {
+        background: linear-gradient(135deg, var(--aiesec-blue) 0%, rgba(3,126,243,0.7) 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(3,126,243,0.15);
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .dashboard-header::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -10%;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+        border-radius: 50%;
+    }
+
+    .area-selector {
+        background: var(--glass-bg);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--glass-border);
+        border-radius: 30px;
+        padding: 0.25rem;
+        display: inline-flex;
+        box-shadow: 0 4px 15px var(--glass-shadow);
+    }
+    
+    .area-selector .btn {
+        border: none;
+        border-radius: 20px;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        color: var(--bs-body-color);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .area-selector .btn.active-area {
+        background: var(--aiesec-blue);
+        color: white;
+        box-shadow: 0 4px 12px rgba(3, 126, 243, 0.3);
+    }
+    
+    .area-selector .btn:hover:not(.active-area) {
+        background: rgba(3, 126, 243, 0.1);
+        color: var(--aiesec-blue);
+    }
+
+    .premium-card {
+        background: var(--card-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        box-shadow: 0 8px 24px var(--glass-shadow);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        overflow: hidden;
+    }
+    
+    .premium-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+    }
+    
+    .premium-stat {
+        position: relative;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .stat-content .stat-display {
+        font-size: 2.5rem;
+        font-weight: 800;
+        line-height: 1;
+        margin-bottom: 0.25rem;
+    }
+    
+    .stat-content .stat-label {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #6c757d;
+        font-weight: 600;
+    }
+    
+    .stat-icon-bg {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        opacity: 0.9;
+    }
+    
+    /* Gradients for stats */
+    .bg-gradient-blue { background: linear-gradient(135deg, #037EF3, #54a0ff); color: white; }
+    .bg-gradient-green { background: linear-gradient(135deg, #30C39E, #10ac84); color: white; }
+    .bg-gradient-orange { background: linear-gradient(135deg, #F85A40, #ff6b6b); color: white; }
+    .bg-gradient-yellow { background: linear-gradient(135deg, #FFC845, #feca57); color: white; }
+    .bg-gradient-cyan { background: linear-gradient(135deg, #00C1D5, #48dbfb); color: white; }
+
+    /* Custom Table */
+    .table-premium th {
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        color: #6c757d;
+        border-bottom: 2px solid var(--glass-border);
+        background: transparent;
+    }
+    .table-premium td {
+        vertical-align: middle;
+        padding: 1rem 0.5rem;
+        border-bottom: 1px solid var(--glass-border);
+    }
+    .table-premium tr:hover td {
+        background-color: rgba(3, 126, 243, 0.02);
+    }
+
+    /* Progress Bars */
+    .progress-premium {
+        height: 8px;
+        border-radius: 4px;
+        background-color: var(--glass-border);
+        overflow: hidden;
+    }
+    
+    .list-group-premium .list-group-item {
+        border: none;
+        border-bottom: 1px solid var(--glass-border);
+        padding: 1rem 1.25rem;
+        background: transparent;
+        transition: background-color 0.2s;
+    }
+    .list-group-premium .list-group-item:hover {
+        background: rgba(0,0,0,0.01);
+    }
+    .list-group-premium .list-group-item:last-child {
+        border-bottom: none;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid p-0">
     <!-- Header with Selector -->
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+    <div class="dashboard-header d-flex justify-content-between align-items-center flex-wrap gap-4">
         <div>
-            <h4 class="mb-0 fw-bold">
-                <i class="bi bi-speedometer2 text-primary me-2"></i>
-                {% if active_area == 'BD' %}BRAND&DATA Hub
-                {% elif active_area == 'GTE' %}GTe Product Hub
-                {% elif active_area == 'GTA' %}GTa Product Hub
-                {% elif active_area == 'IR' %}IR&Partneships Hub
-                {% elif active_area == 'AUD' %}AUDIT&CXP Hub
-                {% else %}Global Overview
+            <h2 class="mb-1 fw-bold text-white d-flex align-items-center gap-3">
+                {% if active_area == 'BD' %}<i class="bi bi-megaphone"></i> BRAND & DATA Hub
+                {% elif active_area == 'GTE' %}<i class="bi bi-briefcase"></i> GTe Product Hub
+                {% elif active_area == 'GTA' %}<i class="bi bi-lightbulb"></i> GTa Product Hub
+                {% elif active_area == 'IR' %}<i class="bi bi-globe"></i> IR & Partnerships Hub
+                {% elif active_area == 'AUD' %}<i class="bi bi-shield-check"></i> AUDIT & CXP Hub
+                {% else %}<i class="bi bi-speedometer2"></i> Global Overview
                 {% endif %}
-            </h4>
-            <p class="text-muted small mb-0 mt-1">Functional workspace & analytics panel</p>
+            </h2>
+            <p class="text-white-50 mb-0">Functional workspace & analytics panel</p>
         </div>
         
-        <div class="d-flex align-items-center gap-2">
-            <span class="text-muted small fw-semibold">Workspace Area:</span>
-            <div class="btn-group">
-                <a href="?area=ALL" class="btn btn-sm {% if active_area == 'ALL' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Global</a>
-                {% for code, label in area_choices %}
-                    <a href="?area={{ code }}" class="btn btn-sm {% if active_area == code %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ label }}</a>
-                {% endfor %}
-            </div>
+        <div class="area-selector shadow-sm">
+            <a href="?area=ALL" class="btn btn-sm {% if active_area == 'ALL' %}active-area{% endif %}">Global</a>
+            {% for code, label in area_choices %}
+                <a href="?area={{ code }}" class="btn btn-sm {% if active_area == code %}active-area{% endif %}">{{ label }}</a>
+            {% endfor %}
         </div>
     </div>
 
     {% if active_area == 'ALL' %}
     <!-- ==================== GLOBAL OVERVIEW ==================== -->
-    <div class="row g-3 mb-4">
+    <div class="row g-4 mb-4">
         <div class="col-md-3">
-            <div class="card card-stat stat-card-blue py-3 px-4">
-                <div class="stat-display">{{ total_eps }}</div>
-                <div class="stat-label">Total EPs</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_eps }}</div>
+                    <div class="stat-label">Total EPs</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-people"></i></div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card card-stat stat-card-green py-3 px-4">
-                <div class="stat-display">{{ total_realized }}</div>
-                <div class="stat-label">Realized EPs</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_realized }}</div>
+                    <div class="stat-label">Realized EPs</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-green shadow-sm"><i class="bi bi-check-circle"></i></div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card card-stat stat-card-orange py-3 px-4">
-                <div class="stat-display">{{ total_problems }}</div>
-                <div class="stat-label">Problem Cases</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_problems }}</div>
+                    <div class="stat-label">Problem Cases</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-orange shadow-sm"><i class="bi bi-exclamation-triangle"></i></div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card card-stat stat-card-yellow py-3 px-4">
-                <div class="stat-display">{{ total_stale }}</div>
-                <div class="stat-label">Stale Cases</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_stale }}</div>
+                    <div class="stat-label">Stale Cases</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-yellow shadow-sm"><i class="bi bi-hourglass-split"></i></div>
             </div>
         </div>
     </div>
 
-    <!-- Funnel Chart and Key Area Metrics -->
-    <div class="row g-3">
+    <div class="row g-4">
         <div class="col-lg-8">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-transparent border-0 pt-3 px-4">
-                    <h6 class="fw-bold mb-0">EP Pipeline Funnel</h6>
+            <div class="premium-card h-100">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-dark">EP Pipeline Funnel</h5>
                 </div>
-                <div class="card-body px-4">
-                    <canvas id="funnelChart" height="200"></canvas>
+                <div class="card-body px-4 pb-4 pt-2">
+                    <canvas id="funnelChart" height="250"></canvas>
                 </div>
             </div>
         </div>
         <div class="col-lg-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-transparent border-0 pt-3 px-4">
-                    <h6 class="fw-bold mb-0">Area Distribution</h6>
+            <div class="premium-card h-100">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold mb-0 text-dark">Area Distribution</h5>
                 </div>
-                <div class="card-body">
-                    <ul class="list-group list-group-flush">
+                <div class="card-body p-0 mt-2">
+                    <ul class="list-group list-group-flush list-group-premium">
                         {% for area in area_distributions %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-                            <span class="fw-semibold">{{ area.name }}</span>
-                            <span class="badge bg-primary rounded-pill">{{ area.count }} EPs</span>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span class="fw-semibold text-secondary">{{ area.name }}</span>
+                            <span class="badge bg-primary rounded-pill px-3 py-2 shadow-sm">{{ area.count }} EPs</span>
                         </li>
                         {% endfor %}
                     </ul>
@@ -92,44 +251,52 @@
 
     {% elif active_area == 'BD' %}
     <!-- ==================== BRAND&DATA DASHBOARD ==================== -->
-    <div class="row g-3 mb-4">
+    <div class="row g-4 mb-4">
         <div class="col-md-4">
-            <div class="card card-stat stat-card-blue py-3 px-4">
-                <div class="stat-display">{{ campaigns_count }}</div>
-                <div class="stat-label">Active Campaigns</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ campaigns_count }}</div>
+                    <div class="stat-label">Active Campaigns</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-bullseye"></i></div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card card-stat stat-card-cyan py-3 px-4">
-                <div class="stat-display">{{ total_leads }}</div>
-                <div class="stat-label">Leads Generated</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_leads }}</div>
+                    <div class="stat-label">Leads Generated</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-cyan shadow-sm"><i class="bi bi-person-lines-fill"></i></div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card card-stat stat-card-green py-3 px-4">
-                <div class="stat-display">{{ total_conversions }}</div>
-                <div class="stat-label">EP Conversions</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_conversions }}</div>
+                    <div class="stat-label">EP Conversions</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-green shadow-sm"><i class="bi bi-graph-up-arrow"></i></div>
             </div>
         </div>
     </div>
 
-    <div class="row g-3">
-        <!-- Lead Funnel Statuses -->
+    <div class="row g-4">
         <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-funnel me-2 text-primary"></i>Lead Stage Tracking</h6>
+            <div class="premium-card h-100">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold mb-0 text-dark">Lead Stage Tracking</h5>
                 </div>
-                <div class="card-body">
-                    <div class="d-flex flex-column gap-3">
+                <div class="card-body px-4 pb-4 pt-3">
+                    <div class="d-flex flex-column gap-4 mt-2">
                         {% for status_item in lead_status_counts %}
                         <div>
-                            <div class="d-flex justify-content-between mb-1 small fw-semibold">
+                            <div class="d-flex justify-content-between mb-2 small fw-bold text-secondary">
                                 <span>{{ status_item.label }}</span>
-                                <span>{{ status_item.count }}</span>
+                                <span class="badge bg-light text-dark border">{{ status_item.count }}</span>
                             </div>
-                            <div class="progress" style="height: 8px;">
-                                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ status_item.percentage }}%;"></div>
+                            <div class="progress progress-premium">
+                                <div class="progress-bar bg-gradient-blue" role="progressbar" style="width: {{ status_item.percentage }}%;"></div>
                             </div>
                         </div>
                         {% endfor %}
@@ -138,20 +305,19 @@
             </div>
         </div>
 
-        <!-- Campaigns Management List -->
         <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-megaphone me-2 text-info"></i>Marketing Campaigns</h6>
-                    <button class="btn btn-xs btn-primary py-1 px-2" style="font-size: .75rem;" data-bs-toggle="modal" data-bs-target="#newCampaignModal">
-                        <i class="bi bi-plus"></i> New
+            <div class="premium-card h-100">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-dark">Marketing Campaigns</h5>
+                    <button class="btn btn-sm btn-primary rounded-pill shadow-sm px-3" data-bs-toggle="modal" data-bs-target="#newCampaignModal">
+                        <i class="bi bi-plus"></i> New Campaign
                     </button>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body px-4 pt-3 pb-4">
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+                        <table class="table table-premium mb-0">
                             <thead>
-                                <tr class="table-light">
+                                <tr>
                                     <th>Name</th>
                                     <th>Channel</th>
                                     <th>Leads</th>
@@ -161,18 +327,18 @@
                             <tbody>
                                 {% for camp in campaigns %}
                                 <tr>
-                                    <td class="fw-bold">{{ camp.name }}</td>
-                                    <td><span class="badge bg-light text-dark border">{{ camp.channel }}</span></td>
-                                    <td>{{ camp.leads_generated }}</td>
+                                    <td class="fw-bold text-dark">{{ camp.name }}</td>
+                                    <td><span class="badge bg-light text-secondary border px-2 py-1">{{ camp.channel }}</span></td>
+                                    <td class="fw-semibold">{{ camp.leads_generated }}</td>
                                     <td>
-                                        <span class="badge {% if camp.status == 'Active' %}bg-success{% elif camp.status == 'Completed' %}bg-secondary{% else %}bg-warning text-dark{% endif %}">
+                                        <span class="badge rounded-pill {% if camp.status == 'Active' %}bg-success{% elif camp.status == 'Completed' %}bg-secondary{% else %}bg-warning text-dark{% endif %} px-2 py-1">
                                             {{ camp.status }}
                                         </span>
                                     </td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No campaigns created yet.</td>
+                                    <td colspan="4" class="text-center py-5 text-muted">No campaigns active right now. Let's create one!</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -185,45 +351,56 @@
 
     {% elif active_area == 'GTE' or active_area == 'GTA' %}
     <!-- ==================== GTe / GTa PRODUCT WORKSPACE ==================== -->
-    <div class="row g-3 mb-4">
+    <div class="row g-4 mb-4">
         <div class="col-md-3">
-            <div class="card card-stat stat-card-blue py-3 px-4">
-                <div class="stat-display">{{ total_eps }}</div>
-                <div class="stat-label">Product EPs</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_eps }}</div>
+                    <div class="stat-label">Product EPs</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-person-workspace"></i></div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card card-stat stat-card-orange py-3 px-4">
-                <div class="stat-display">{{ open_matching_count }}</div>
-                <div class="stat-label">In Matching Queue</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ open_matching_count }}</div>
+                    <div class="stat-label">In Matching Queue</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-orange shadow-sm"><i class="bi bi-magic"></i></div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card card-stat stat-card-green py-3 px-4">
-                <div class="stat-display">{{ realized_count }}</div>
-                <div class="stat-label">Realized Stages</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ realized_count }}</div>
+                    <div class="stat-label">Realized Stages</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-green shadow-sm"><i class="bi bi-check-all"></i></div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card card-stat stat-card-yellow py-3 px-4">
-                <div class="stat-display">{{ stale_count }}</div>
-                <div class="stat-label">Stale Product Cases</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ stale_count }}</div>
+                    <div class="stat-label">Stale Cases</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-yellow shadow-sm"><i class="bi bi-clock-history"></i></div>
             </div>
         </div>
     </div>
 
-    <div class="row g-3">
-        <!-- EPs Pipeline List -->
+    <div class="row g-4">
         <div class="col-lg-7">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-people me-2 text-primary"></i>Active Product Pipeline</h6>
+            <div class="premium-card h-100">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold mb-0 text-dark">Active Product Pipeline</h5>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body px-4 pt-3 pb-4">
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+                        <table class="table table-premium mb-0">
                             <thead>
-                                <tr class="table-light">
+                                <tr>
                                     <th>EP Name</th>
                                     <th>University</th>
                                     <th>Stage</th>
@@ -234,17 +411,17 @@
                                 {% for ep in product_eps %}
                                 <tr>
                                     <td class="fw-bold"><a href="{% url 'ep_detail' ep.pk %}" class="text-decoration-none">{{ ep.full_name }}</a></td>
-                                    <td>{{ ep.university|default:"—" }}</td>
+                                    <td class="text-secondary">{{ ep.university|default:"—" }}</td>
                                     <td>
                                         <span class="badge stage-badge stage-{{ ep.current_stage }}">
                                             {{ ep.get_current_stage_display }}
                                         </span>
                                     </td>
-                                    <td class="text-muted small">{{ ep.last_activity_at|date:"M d, H:i" }}</td>
+                                    <td class="text-muted small fw-semibold">{{ ep.last_activity_at|date:"M d, H:i" }}</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No EPs assigned in this product track.</td>
+                                    <td colspan="4" class="text-center py-5 text-muted">No EPs currently in this pipeline.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -254,26 +431,30 @@
             </div>
         </div>
 
-        <!-- Matching Board Suggestion Queue -->
         <div class="col-lg-5">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-lightning-charge me-2 text-warning"></i>Matching Queue</h6>
+            <div class="premium-card h-100 bg-light-subtle">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                        <i class="bi bi-lightning-charge-fill text-warning fs-4"></i> Matching Queue
+                    </h5>
                 </div>
-                <div class="card-body p-0">
-                    <ul class="list-group list-group-flush">
+                <div class="card-body p-0 mt-3">
+                    <ul class="list-group list-group-flush list-group-premium">
                         {% for ep in matching_queue %}
-                        <li class="list-group-item py-3">
+                        <li class="list-group-item bg-transparent">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="fw-bold text-dark">{{ ep.full_name }}</span>
-                                <a href="/matching/?ep_id={{ ep.pk }}" class="btn btn-xs btn-outline-primary py-1 px-2" style="font-size: .7rem;">
-                                    <i class="bi bi-magic"></i> Match Scorer
+                                <span class="fw-bold text-dark fs-6">{{ ep.full_name }}</span>
+                                <a href="/matching/?ep_id={{ ep.pk }}" class="btn btn-sm btn-outline-primary rounded-pill px-3 shadow-sm">
+                                    Match <i class="bi bi-arrow-right-short"></i>
                                 </a>
                             </div>
-                            <div class="text-muted small">Major: {{ ep.study_field|default:"—" }}</div>
+                            <div class="text-muted small">Major: {{ ep.study_field|default:"Not specified" }}</div>
                         </li>
                         {% empty %}
-                        <li class="list-group-item py-4 text-center text-muted">All assigned EPs matched!</li>
+                        <li class="list-group-item bg-transparent py-5 text-center text-muted border-0">
+                            <i class="bi bi-check2-circle fs-1 text-success d-block mb-2"></i>
+                            All assigned EPs have been matched!
+                        </li>
                         {% endfor %}
                     </ul>
                 </div>
@@ -283,39 +464,47 @@
 
     {% elif active_area == 'IR' %}
     <!-- ==================== IR&PARTNESHIPS WORKSPACE ==================== -->
-    <div class="row g-3 mb-4">
+    <div class="row g-4 mb-4">
         <div class="col-md-4">
-            <div class="card card-stat stat-card-blue py-3 px-4">
-                <div class="stat-display">{{ total_irs }}</div>
-                <div class="stat-label">Active IR Partners</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_irs }}</div>
+                    <div class="stat-label">Active IR Partners</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-building"></i></div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card card-stat stat-card-cyan py-3 px-4">
-                <div class="stat-display">{{ total_opps }}</div>
-                <div class="stat-label">Open Opportunities</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_opps }}</div>
+                    <div class="stat-label">Open Opportunities</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-cyan shadow-sm"><i class="bi bi-briefcase"></i></div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card card-stat stat-card-green py-3 px-4">
-                <div class="stat-display">{{ realized_irs }}</div>
-                <div class="stat-label">Realizations Realized</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ realized_irs }}</div>
+                    <div class="stat-label">Realizations</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-green shadow-sm"><i class="bi bi-airplane"></i></div>
             </div>
         </div>
     </div>
 
-    <div class="row g-3">
-        <!-- IR Partners Performance Board -->
-        <div class="col-lg-7">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-building me-2 text-success"></i>Partner Performance Matrix</h6>
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="premium-card h-100">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold mb-0 text-dark">Partner Performance Matrix</h5>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body px-4 pt-3 pb-4">
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+                        <table class="table table-premium mb-0">
                             <thead>
-                                <tr class="table-light">
+                                <tr>
                                     <th>Partner Name</th>
                                     <th>Country</th>
                                     <th>Rejection Rate</th>
@@ -325,14 +514,20 @@
                             <tbody>
                                 {% for ir in partners %}
                                 <tr>
-                                    <td class="fw-bold">{{ ir.entity_name }}</td>
-                                    <td><span class="badge bg-secondary-subtle text-secondary">{{ ir.country }}</span></td>
-                                    <td class="text-danger fw-semibold">{{ ir.rejection_rate }}%</td>
-                                    <td>{{ ir.open_opportunities_count }} slots</td>
+                                    <td class="fw-bold text-dark">{{ ir.entity_name }}</td>
+                                    <td><span class="badge bg-light text-secondary border px-2 py-1"><i class="bi bi-geo-alt-fill me-1"></i>{{ ir.country }}</span></td>
+                                    <td>
+                                        {% if ir.rejection_rate > 20 %}
+                                            <span class="text-danger fw-bold"><i class="bi bi-arrow-down-right"></i> {{ ir.rejection_rate }}%</span>
+                                        {% else %}
+                                            <span class="text-success fw-bold"><i class="bi bi-arrow-up-right"></i> {{ ir.rejection_rate }}%</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="fw-semibold">{{ ir.open_opportunities_count }} slots</td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No IR Partners active.</td>
+                                    <td colspan="4" class="text-center py-5 text-muted">No active IR Partners found.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -342,20 +537,20 @@
             </div>
         </div>
 
-        <!-- Geographical Distribution -->
-        <div class="col-lg-5">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-geo-alt me-2 text-danger"></i>Partner Countries</h6>
+        <div class="col-lg-4">
+            <div class="premium-card h-100">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold mb-0 text-dark">Geographical Reach</h5>
                 </div>
-                <div class="card-body">
-                    <div class="d-flex flex-wrap gap-2">
+                <div class="card-body p-4 mt-2">
+                    <div class="d-flex flex-column gap-2">
                         {% for country in country_stats %}
-                        <span class="badge bg-light text-dark border p-2">
-                            <i class="bi bi-globe me-1 text-primary"></i> {{ country.country }} ({{ country.count }})
-                        </span>
+                        <div class="d-flex justify-content-between align-items-center p-2 rounded" style="background: rgba(3,126,243,0.05); border: 1px solid rgba(3,126,243,0.1);">
+                            <span class="fw-semibold text-dark"><i class="bi bi-globe-americas text-primary me-2"></i> {{ country.country }}</span>
+                            <span class="badge bg-primary rounded-pill shadow-sm">{{ country.count }}</span>
+                        </div>
                         {% empty %}
-                        <span class="text-muted small">No country data.</span>
+                        <div class="text-center text-muted py-4">No country data available.</div>
                         {% endfor %}
                     </div>
                 </div>
@@ -365,63 +560,73 @@
 
     {% elif active_area == 'AUD' %}
     <!-- ==================== AUDIT&CXP WORKSPACE ==================== -->
-    <div class="row g-3 mb-4">
+    <div class="row g-4 mb-4">
         <div class="col-md-4">
-            <div class="card card-stat stat-card-blue py-3 px-4">
-                <div class="stat-display">{{ total_contracts }}</div>
-                <div class="stat-label">Legal Contracts</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ total_contracts }}</div>
+                    <div class="stat-label">Legal Contracts</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-blue shadow-sm"><i class="bi bi-file-earmark-text"></i></div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card card-stat stat-card-yellow py-3 px-4">
-                <div class="stat-display">{{ missing_docs_count }}</div>
-                <div class="stat-label">Missing Legal Docs</div>
+            <div class="premium-card premium-stat" style="border-left: 4px solid var(--aiesec-orange);">
+                <div class="stat-content">
+                    <div class="stat-display text-danger">{{ missing_docs_count }}</div>
+                    <div class="stat-label">Missing Legal Docs</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-orange shadow-sm"><i class="bi bi-exclamation-octagon"></i></div>
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card card-stat stat-card-green py-3 px-4">
-                <div class="stat-display">{{ pending_payments_count }}</div>
-                <div class="stat-label">Pending Payments</div>
+            <div class="premium-card premium-stat">
+                <div class="stat-content">
+                    <div class="stat-display text-dark">{{ pending_payments_count }}</div>
+                    <div class="stat-label">Pending Payments</div>
+                </div>
+                <div class="stat-icon-bg bg-gradient-yellow shadow-sm"><i class="bi bi-cash-stack"></i></div>
             </div>
         </div>
     </div>
 
-    <div class="row g-3">
-        <!-- Missing Legal Documents Urgent Actions -->
+    <div class="row g-4">
         <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="mb-0 fw-bold text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Urgent Missing Documents</h6>
+            <div class="premium-card h-100 border-danger border-opacity-25">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold mb-0 text-danger"><i class="bi bi-shield-exclamation me-2"></i>Urgent Missing Documents</h5>
                 </div>
-                <div class="card-body p-0">
-                    <ul class="list-group list-group-flush">
+                <div class="card-body p-0 mt-3">
+                    <ul class="list-group list-group-flush list-group-premium">
                         {% for doc in missing_docs %}
-                        <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+                        <li class="list-group-item d-flex justify-content-between align-items-center bg-transparent">
                             <div>
-                                <span class="fw-bold">{{ doc.ep.full_name }}</span>
-                                <div class="text-muted small mt-1">Missing: <span class="text-danger fw-semibold">{{ doc.get_document_type_display }}</span></div>
+                                <span class="fw-bold text-dark d-block">{{ doc.ep.full_name }}</span>
+                                <span class="text-muted small">Required: <span class="text-danger fw-semibold">{{ doc.get_document_type_display }}</span></span>
                             </div>
-                            <span class="badge bg-danger">Pending Audit</span>
+                            <span class="badge bg-danger rounded-pill shadow-sm px-3 py-2">Pending Audit</span>
                         </li>
                         {% empty %}
-                        <li class="list-group-item py-4 text-center text-muted">All EP legal documents fully audited!</li>
+                        <li class="list-group-item py-5 text-center text-muted border-0 bg-transparent">
+                            <i class="bi bi-patch-check fs-1 text-success d-block mb-2"></i>
+                            All EP legal documents fully audited!
+                        </li>
                         {% endfor %}
                     </ul>
                 </div>
             </div>
         </div>
 
-        <!-- Pending Payments Oversight -->
         <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-white border-bottom py-3">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-wallet2 me-2 text-success"></i>Outstanding Payments</h6>
+            <div class="premium-card h-100 border-warning border-opacity-25">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold mb-0 text-warning text-darken-2"><i class="bi bi-wallet2 me-2"></i>Outstanding Payments</h5>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body px-4 pt-3 pb-4">
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
+                        <table class="table table-premium mb-0">
                             <thead>
-                                <tr class="table-light">
+                                <tr>
                                     <th>EP Name</th>
                                     <th>Amount</th>
                                     <th>Due Date</th>
@@ -431,14 +636,17 @@
                             <tbody>
                                 {% for pay in pending_payments %}
                                 <tr>
-                                    <td class="fw-bold">{{ pay.related_ep.full_name }}</td>
-                                    <td class="fw-semibold text-success">{{ pay.amount }} {{ pay.currency }}</td>
-                                    <td>{{ pay.due_date|date:"M d, Y" }}</td>
-                                    <td><span class="badge bg-warning text-dark">{{ pay.status }}</span></td>
+                                    <td class="fw-bold text-dark">{{ pay.related_ep.full_name }}</td>
+                                    <td class="fw-bold text-success fs-6">{{ pay.amount }} {{ pay.currency }}</td>
+                                    <td class="text-secondary fw-semibold">{{ pay.due_date|date:"M d, Y" }}</td>
+                                    <td><span class="badge bg-warning text-dark rounded-pill px-2 py-1 shadow-sm">{{ pay.status }}</span></td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">No pending payments.</td>
+                                    <td colspan="4" class="text-center py-5 text-muted border-0">
+                                        <i class="bi bi-piggy-bank fs-2 text-secondary d-block mb-2"></i>
+                                        No pending payments.
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -450,20 +658,20 @@
     </div>
     {% endif %}
 
-    <!-- Tasks Scoped to Area -->
-    <div class="row g-3 mt-4">
+    <!-- Scoped Tasks List -->
+    <div class="row g-4 mt-2">
         <div class="col-12">
-            <div class="card shadow-sm">
-                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0 fw-bold"><i class="bi bi-list-task me-2 text-primary"></i>Scoped Tasks & Action Items</h6>
-                    <a href="/tasks/" class="btn btn-xs btn-outline-secondary py-1 px-2" style="font-size: .75rem;">Manage All Tasks</a>
+            <div class="premium-card">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="bi bi-list-task text-primary me-2"></i>Scoped Tasks & Action Items</h5>
+                    <a href="/tasks/" class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm">View All Tasks</a>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body px-4 pt-3 pb-4">
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" style="font-size: .85rem;">
-                            <thead class="table-light">
+                        <table class="table table-premium mb-0">
+                            <thead>
                                 <tr>
-                                    <th>Title</th>
+                                    <th>Task Title</th>
                                     <th>Priority</th>
                                     <th>Assigned To</th>
                                     <th>Due Date</th>
@@ -473,19 +681,19 @@
                             <tbody>
                                 {% for task in scoped_tasks %}
                                 <tr>
-                                    <td class="fw-bold">{{ task.title }}</td>
+                                    <td class="fw-bold text-dark">{{ task.title }}</td>
                                     <td>
-                                        <span class="badge {% if task.priority == 'Urgente' %}bg-danger{% elif task.priority == 'Haute' %}bg-warning text-dark{% elif task.priority == 'Moyenne' %}bg-primary{% else %}bg-secondary{% endif %}" style="font-size: .65rem;">
+                                        <span class="badge rounded-pill {% if task.priority == 'Urgente' %}bg-danger{% elif task.priority == 'Haute' %}bg-warning text-dark{% elif task.priority == 'Moyenne' %}bg-primary{% else %}bg-secondary{% endif %} px-2 py-1">
                                             {{ task.priority }}
                                         </span>
                                     </td>
-                                    <td>{{ task.assigned_to.name }}</td>
-                                    <td>{{ task.due_date|date:"M d, H:i"|default:"—" }}</td>
-                                    <td><span class="badge bg-light text-dark border">{{ task.status }}</span></td>
+                                    <td class="text-secondary fw-semibold"><i class="bi bi-person-circle me-1"></i>{{ task.assigned_to.name }}</td>
+                                    <td class="text-muted">{{ task.due_date|date:"M d, H:i"|default:"No due date" }}</td>
+                                    <td><span class="badge bg-light text-dark border px-2 py-1 rounded-pill">{{ task.status }}</span></td>
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="5" class="text-center py-4 text-muted">No tasks created for this Key Area.</td>
+                                    <td colspan="5" class="text-center py-5 text-muted border-0">No tasks created for this Key Area.</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -500,32 +708,32 @@
 <!-- Add Marketing Campaign Modal (BD only) -->
 {% if active_area == 'BD' %}
 <div class="modal fade" id="newCampaignModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form method="post" action="{% url 'member_create' %}"> <!-- Form targets campaign creation later -->
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
+            <form method="post" action="{% url 'member_create' %}"> 
                 {% csrf_token %}
-                <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold">New Marketing Campaign</h5>
+                <div class="modal-header border-bottom-0 pb-0 pt-4 px-4">
+                    <h5 class="modal-title fw-bold text-dark">New Marketing Campaign</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-4">
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Campaign Name *</label>
-                        <input type="text" name="name" class="form-control" required placeholder="e.g. Winter Recruitment 2026">
+                        <label class="form-label fw-bold text-secondary">Campaign Name *</label>
+                        <input type="text" name="name" class="form-control form-control-lg bg-light" style="border-radius: 10px;" required placeholder="e.g. Winter Recruitment 2026">
                     </div>
-                    <div class="row g-2 mb-3">
+                    <div class="row g-3 mb-3">
                         <div class="col-6">
-                            <label class="form-label fw-semibold">Start Date *</label>
-                            <input type="date" name="start_date" class="form-control" required>
+                            <label class="form-label fw-bold text-secondary">Start Date *</label>
+                            <input type="date" name="start_date" class="form-control bg-light" style="border-radius: 10px;" required>
                         </div>
                         <div class="col-6">
-                            <label class="form-label fw-semibold">End Date *</label>
-                            <input type="date" name="end_date" class="form-control" required>
+                            <label class="form-label fw-bold text-secondary">End Date *</label>
+                            <input type="date" name="end_date" class="form-control bg-light" style="border-radius: 10px;" required>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Marketing Channel</label>
-                        <select name="channel" class="form-select">
+                    <div class="mb-2">
+                        <label class="form-label fw-bold text-secondary">Marketing Channel</label>
+                        <select name="channel" class="form-select bg-light" style="border-radius: 10px;">
                             <option value="Instagram">Instagram</option>
                             <option value="LinkedIn">LinkedIn</option>
                             <option value="Facebook">Facebook</option>
@@ -535,9 +743,9 @@
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create Campaign</button>
+                <div class="modal-footer border-top-0 pt-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 shadow-sm">Create Campaign</button>
                 </div>
             </form>
         </div>
@@ -550,6 +758,12 @@
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     var ctx = document.getElementById('funnelChart').getContext('2d');
+    
+    // Create gradient
+    var gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    gradient.addColorStop(0, 'rgba(3, 126, 243, 0.8)');   
+    gradient.addColorStop(1, 'rgba(3, 126, 243, 0.2)');
+
     new Chart(ctx, {
         type: 'bar',
         data: {
@@ -557,18 +771,39 @@ document.addEventListener("DOMContentLoaded", function() {
             datasets: [{
                 label: 'EPs in Funnel',
                 data: {{ funnel_counts|safe }},
-                backgroundColor: 'rgba(3, 126, 243, 0.75)',
+                backgroundColor: gradient,
                 borderColor: 'rgba(3, 126, 243, 1)',
-                borderWidth: 1,
-                borderRadius: 6
+                borderWidth: 2,
+                borderRadius: 8,
+                barPercentage: 0.7
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: 'rgba(10, 20, 38, 0.9)',
+                    titleFont: { size: 14, family: "'Outfit', sans-serif" },
+                    bodyFont: { size: 14, family: "'Outfit', sans-serif", weight: 'bold' },
+                    padding: 12,
+                    cornerRadius: 8
+                }
+            },
             scales: {
-                y: { beginAtZero: true, ticks: { stepSize: 1 } }
-            }
+                y: { 
+                    beginAtZero: true, 
+                    ticks: { stepSize: 1, font: { family: "'Outfit', sans-serif" } },
+                    grid: { color: 'rgba(0,0,0,0.05)', borderDash: [5, 5] },
+                    border: { display: false }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { family: "'Outfit', sans-serif", size: 11 } }
+                }
+            },
+            animation: { duration: 1500, easing: 'easeOutQuart' }
         }
     });
 });

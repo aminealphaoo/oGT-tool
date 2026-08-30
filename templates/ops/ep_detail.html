@@ -110,19 +110,19 @@
                             <span class="fw-semibold text-muted d-block mb-2">Stage Readiness Checklist:</span>
                             <div class="d-flex flex-wrap gap-2">
                                 {% for stage_key, status in prereq_status.items %}
-                                {% if stage_key != ep.current_stage %}
-                                <span class="badge {% if status.0 %}bg-success-subtle text-success border border-success-subtle{% else %}bg-danger-subtle text-danger border border-danger-subtle{% endif %} px-2 py-1" title="{% if not status.0 %}Missing: {{ status.1|join:', ' }}{% else %}Ready{% endif %}">
-                                    {{ stage_key|slice:":12"|title }}{% if status.0 %} <i class="bi bi-check2"></i>{% else %} <i class="bi bi-x"></i>{% endif %}
+                                {% if allowed_stages and stage_key == allowed_stages.0.0 %}
+                                <span class="badge {% if status.0 %}bg-success-subtle text-success border border-success-subtle{% else %}bg-danger-subtle text-danger border border-danger-subtle{% endif %} px-2 py-2" title="{% if not status.0 %}Missing: {{ status.1|join:', ' }}{% else %}Ready{% endif %}">
+                                    For {{ stage_key|title }}: {% if status.0 %}Ready <i class="bi bi-check2"></i>{% else %}Not Ready <i class="bi bi-x"></i>{% endif %}
                                 </span>
+                                {% if not status.0 %}
+                                <div class="w-100 text-danger small mt-1"><i class="bi bi-exclamation-circle me-1"></i> Missing: {{ status.1|join:', ' }}</div>
+                                {% endif %}
                                 {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
 
-                        <form method="post" action="{% url 'ep_advance_stage' ep.pk %}" class="row g-3"
-                              hx-post="{% url 'ep_advance_stage' ep.pk %}"
-                              hx-target="#process" hx-select="#process" hx-swap="outerHTML"
-                              hx-headers='{"HX-Request": "true"}'>
+                        <form method="post" action="{% url 'ep_advance_stage' ep.pk %}" class="row g-3">
                             {% csrf_token %}
                             <div class="col-md-8">
                                 <label class="form-label small fw-semibold">Move EP to:</label>
@@ -149,9 +149,6 @@
                         <!-- Revert button -->
                         {% if previous_stage %}
                         <form method="post" action="{% url 'ep_revert_stage' ep.pk %}" class="mt-4 pt-3 border-top" 
-                              hx-post="{% url 'ep_revert_stage' ep.pk %}"
-                              hx-target="#process" hx-select="#process" hx-swap="outerHTML"
-                              hx-headers='{"HX-Request": "true"}' 
                               onsubmit="return confirm('Revert {{ ep.full_name }} back to {{ previous_stage }}?')">
                             {% csrf_token %}
                             <input type="hidden" name="note" value="Reverted">
@@ -318,10 +315,16 @@
                             </div>
                             <div class="d-flex gap-2">
                                 <select name="label" class="form-select form-select-sm w-50">
-                                    <option value="contract">Contract</option>
-                                    <option value="passport">Passport/ID</option>
                                     <option value="cv">CV</option>
-                                    <option value="acceptance">Acceptance</option>
+                                    <option value="contract">Contract</option>
+                                    <option value="approval_mail">Approval mail</option>
+                                    <option value="acceptance_mail">Acceptance mail</option>
+                                    <option value="health_insurance">Health insurance</option>
+                                    <option value="goal_setting">Goal setting before realization</option>
+                                    <option value="ops_invitation">OPS invitation</option>
+                                    <option value="ops_delivery">OPS delivery</option>
+                                    <option value="communication">Communication with EP</option>
+                                    <option value="debrief">Debrief</option>
                                     <option value="other">Other</option>
                                 </select>
                                 <button type="submit" class="btn btn-sm btn-outline-primary w-50">

@@ -47,10 +47,10 @@ def dashboard(request):
     if active_area not in ["BD", "GTE", "GTA", "IR", "AUD", "ALL"]:
         active_area = "ALL"
 
-    # Restrict non-VPs from accessing areas other than their own or ALL
-    if member and not member.is_vp() and active_area != "ALL":
-        if member.team and member.team.key_area != active_area:
-            active_area = member.team.key_area  # force lock to their area
+    # Removed access restriction to allow all members to view any area for testing
+    # if member and not member.is_vp() and active_area != "ALL":
+    #     if member.team and member.team.key_area != active_area:
+    #         active_area = member.team.key_area  # force lock to their area
 
     context = {
         "active_area": active_area,

@@ -325,6 +325,10 @@ def ep_create(request):
 
             ep = form.save(commit=False)
             ep.last_edited_by = request.current_member
+            ep.assigned_to = request.current_member
+            ep.assigned_member = request.current_member
+            if request.current_member.team:
+                ep.assigned_area = request.current_member.team
             ep.save()
             return redirect("ep_detail", pk=ep.pk)
     else:
@@ -375,15 +379,15 @@ def ep_advance_stage(request, pk):
                 from django.contrib import messages
                 label = EP.Stage(next_stage).label if next_stage else "none (already at final stage)"
                 messages.error(request, f"Cannot skip stages. Next stage is: {label}.")
-                return _render_ep_detail_process(request, ep)
+                return redirect("ep_detail", pk=ep.pk)
 
             # Prerequisites check
             ok, missing_hard, missing_soft = _check_prerequisites(ep, target)
 
             if not ok and not is_revert:
                 from django.contrib import messages
-                messages.error(request, f"Cannot advance: {"; ".join(missing_hard)}. Fix these first.")
-                return _render_ep_detail_process(request, ep)
+                messages.error(request, f"Cannot advance: {'; '.join(missing_hard)}. Fix these first.")
+                return redirect("ep_detail", pk=ep.pk)
 
             if missing_soft and not is_revert:
                 from django.contrib import messages
@@ -398,7 +402,7 @@ def ep_advance_stage(request, pk):
                 from django.contrib import messages
                 messages.success(request, f"Advanced to {EP.Stage(target).label}.")
 
-    return _render_ep_detail_process(request, ep)
+    return redirect("ep_detail", pk=ep.pk)
 def ep_revert_stage(request, pk):
     """Revert EP to the previous stage."""
     ep = get_object_or_404(EP, pk=pk)
@@ -411,7 +415,7 @@ def ep_revert_stage(request, pk):
         from django.contrib import messages
         messages.info(request, f"Reverted to {EP.Stage(ep.current_stage).label}.")
 
-    return _render_ep_detail_process(request, ep)
+    return redirect("ep_detail", pk=ep.pk)
 def ep_archive(request, pk):
     """Soft-delete / archive an EP."""
     ep = get_object_or_404(EP, pk=pk)
@@ -1175,8 +1179,9 @@ def task_quick_status(request, task_id):
 def notifications_list(request):
     """JSON or HTML list of notifications for the current user."""
     user = request.user
-    notifs = Notification.objects.filter(user=user).order_by("-created_at")[:30]
-    unread_count = notifs.filter(is_read=False).count()
+    base_notifs = Notification.objects.filter(user=user).order_by("-created_at")
+    unread_count = base_notifs.filter(is_read=False).count()
+    notifs = base_notifs[:30]
 
     if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.GET.get("format") == "json":
         data = [{"id": n.pk, "title": n.title, "message": n.message, "link": n.link, "is_read": n.is_read, "created_at": n.created_at.isoformat()} for n in notifs]

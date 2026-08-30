@@ -84,19 +84,16 @@ class Member(models.Model):
         """Check if this member can view a given EP."""
         if self.is_vp():
             return True
-        if self.is_tl() and self.team and ep.assigned_area == self.team:
-            return True
+        if self.is_tl() and self.team:
+            if ep.assigned_area == self.team or (ep.assigned_to and ep.assigned_to.team == self.team) or (ep.assigned_member and ep.assigned_member.team == self.team):
+                return True
         if ep.assigned_member == self or ep.assigned_to == self:
             return True
         return False
 
     def can_view_ir(self, ir) -> bool:
-        """Check if this member can view a given IR."""
-        if self.is_vp():
-            return True
-        if ir.assigned_to == self:
-            return True
-        return False
+        """Check if this member can view a given IR. Currently allows all members to view all IRs."""
+        return True
 
     # ── Scoped querysets ──────────────────────────────────────────────
     def get_visible_eps(self):
@@ -106,14 +103,16 @@ class Member(models.Model):
         if self.is_vp():
             return EP.objects.all()
         if self.is_tl() and self.team:
-            return EP.objects.filter(assigned_area=self.team)
-        return EP.objects.filter(assigned_member=self)
+            return EP.objects.filter(
+                models.Q(assigned_area=self.team) |
+                models.Q(assigned_to__team=self.team) |
+                models.Q(assigned_member__team=self.team)
+            ).distinct()
+        return EP.objects.filter(models.Q(assigned_member=self) | models.Q(assigned_to=self)).distinct()
 
     def get_visible_irs(self):
         """Return IR queryset scoped to this member's role."""
         from partners.models import IR
 
-        if self.is_vp():
-            return IR.objects.all()
-        return IR.objects.filter(assigned_to=self)
+        return IR.objects.all()
 
