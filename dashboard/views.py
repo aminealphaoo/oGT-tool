@@ -86,7 +86,11 @@ def dashboard(request):
         # Area distribution
         area_distributions = []
         for code, label in Team.KEY_AREA_CHOICES:
-            count = eps.filter(assigned_area__key_area=code).count()
+            # Try to get count based on the assigned member's team (modern approach)
+            count = eps.filter(
+                Q(assigned_member__team__key_area=code) | 
+                Q(assigned_area__key_area=code)
+            ).distinct().count()
             area_distributions.append({"name": label, "count": count})
         context["area_distributions"] = area_distributions
 
