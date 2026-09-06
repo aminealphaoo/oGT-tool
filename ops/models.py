@@ -177,6 +177,34 @@ class EP(models.Model):
         )
 
     @property
+    def current_stage_days(self) -> int:
+        """Calculate days spent in the current stage based on latest stage history or last activity."""
+        latest_change = self.stage_history.filter(stage=self.current_stage).order_by("-changed_at").first()
+        start_time = latest_change.changed_at if latest_change else self.last_activity_at
+        if not start_time:
+            return 0
+        return (timezone.now() - start_time).days
+
+    @property
+    def stage_alert_level(self) -> str:
+        """
+        Calculates problem level for applied, matched_with_opp, accepted:
+        - 'red': > 7 days in stage
+        - 'orange': 3 to 7 days in stage
+        - 'normal': < 3 days or in other stages
+        """
+        ALERT_STAGES = ["applied", "matched_with_opp", "accepted"]
+        if self.current_stage not in ALERT_STAGES:
+            return "normal"
+        
+        days = self.current_stage_days
+        if days > 7:
+            return "red"
+        elif days >= 3:
+            return "orange"
+        return "normal"
+
+    @property
     def is_stale(self) -> bool:
         """Check if the EP is stale based on per-stage idle thresholds."""
         from core.models import SiteConfig
@@ -361,7 +389,7 @@ class Lead(models.Model):
     university = models.CharField(max_length=200, blank=True)
     study_field = models.CharField(max_length=100, blank=True)
     interest_track = models.CharField(max_length=20, choices=[('GTa','Global Talent'),('GTe','Global Teacher')])
-    source_campaign = models.ForeignKey(Campaign, on_delete=models.SET_NULL, null=True, blank=True)
+    source_campaign = models.ForeignKey(Campaign, on_delete=models.SET_NULL, null=True, blank=True, related_name='leads')
     assigned_marc_member = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, blank=True, related_name='leads')
     status = models.CharField(max_length=20, choices=[
         ('New','Nouveau'),('Contacted','Contacté'),('Interested','Intéressé'),

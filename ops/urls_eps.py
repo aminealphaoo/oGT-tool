@@ -77,4 +77,5 @@ brand_patterns = [
     path("content/new/", views.content_item_create, name="content_item_create"),
     path("content/<int:item_pk>/move/", views.content_item_move, name="content_item_move"),
     path("content/testimonial/new/", views.testimonial_create, name="testimonial_create"),
+    path("campaign/new/", views.campaign_create, name="campaign_create"),
 ]

@@ -15,7 +15,7 @@ from partners.models import IR, Opportunity
 
 from .forms import AttachmentForm, EPForm, InteractionForm, ProblemFlagForm, StageAdvanceForm, TaskForm
 from .models import (
-    EP, Attachment, ContentCalendar, DeliveryChecklist, HandoffRecord,
+    EP, Attachment, Campaign, ContentCalendar, DeliveryChecklist, HandoffRecord,
     Interaction, MatchRecord, SavedFilter, Task, Testimonial,
 )
 
@@ -252,28 +252,7 @@ def ep_list(request):
 def ep_detail(request, pk):
     """EP profile: all fields, stage history, interaction log, attachments."""
     member = request.current_member
-
-    # Base queryset filtered by role
-    if member.is_vp():
-        ep = get_object_or_404(EP.objects.select_related("assigned_member"), pk=pk)
-    elif member.is_tl():
-        # TL sees EPs assigned to their team
-        ep = get_object_or_404(
-            EP.objects.filter(assigned_member__team=member.team).select_related("assigned_member"),
-            pk=pk
-        )
-    elif member.role == 'IR':
-        # IR sees EP profiles in open/progress stages
-        ep = get_object_or_404(
-            EP.objects.filter(current_stage__in=['open','applied','matched_with_opp','accepted']).select_related("assigned_member"),
-            pk=pk
-        )
-    else:
-        # Regular member: own EPs only
-        ep = get_object_or_404(
-            EP.objects.filter(assigned_member=member).select_related("assigned_member"),
-            pk=pk
-        )
+    ep = get_object_or_404(member.get_visible_eps().select_related("assigned_to", "assigned_member"), pk=pk)
 
     stage_history = ep.stage_history.select_related("changed_by")
     interactions = ep.interactions.select_related("author")
@@ -1609,3 +1588,38 @@ def testimonial_create(request):
     )
     messages.success(request, "✅ Testimonial added.")
     return redirect("brand_content")
+
+
+def campaign_create(request):
+    """Create a new Marketing Campaign for Brand & Data."""
+    if request.method != "POST":
+        return redirect("dashboard")
+
+    member = request.current_member
+    from members.models import Team
+
+    # Get or create BD team
+    bd_team = Team.objects.filter(key_area="BD").first()
+    if not bd_team:
+        bd_team = Team.objects.create(name="BRAND&DATA", key_area="BD")
+
+    name = request.POST.get("name", "").strip()
+    start_date = request.POST.get("start_date")
+    end_date = request.POST.get("end_date")
+    channel = request.POST.get("channel", "Instagram")
+
+    if name and start_date and end_date:
+        Campaign.objects.create(
+            name=name,
+            key_area=bd_team,
+            start_date=start_date,
+            end_date=end_date,
+            channel=channel,
+            created_by=member,
+            status="Active",
+        )
+        messages.success(request, f"✅ Marketing campaign '{name}' created successfully!")
+    else:
+        messages.error(request, "⚠️ Failed to create campaign: Missing required fields.")
+
+    return redirect("/?area=BD")

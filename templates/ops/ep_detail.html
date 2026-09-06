@@ -54,6 +54,16 @@
             <span class="badge bg-light text-muted border">No issues</span>
             {% endif %}
             
+            {% if ep.stage_alert_level == 'red' %}
+            <span class="badge stage-alert-badge-red ms-2 p-2 shadow-sm" title="Stuck in {{ ep.get_current_stage_display }} for {{ ep.current_stage_days }} days! (>7d)">
+                <i class="bi bi-exclamation-octagon-fill me-1"></i>Stage Delay Alert: {{ ep.current_stage_days }} days in {{ ep.get_current_stage_display }}
+            </span>
+            {% elif ep.stage_alert_level == 'orange' %}
+            <span class="badge stage-alert-badge-orange ms-2 p-2 shadow-sm" title="Stuck in {{ ep.get_current_stage_display }} for {{ ep.current_stage_days }} days! (3-7d)">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>Stage Delay Warning: {{ ep.current_stage_days }} days in {{ ep.get_current_stage_display }}
+            </span>
+            {% endif %}
+
             {% if ep.is_stale %}
             <span class="badge bg-warning text-dark ms-2 shadow-sm" title="Idle {{ ep.idle_days }} days">
                 <i class="bi bi-clock-history"></i> Stale {{ ep.idle_days }}d

@@ -323,13 +323,31 @@
         </div>
     </div>
 
-    <div class="row g-4">
         <div class="col-lg-6">
             <div class="premium-card h-100">
-                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0">
+                <div class="card-header bg-transparent border-0 pt-4 px-4 pb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h5 class="fw-bold mb-0">Lead Stage Tracking</h5>
+                    <form method="get" action="" class="d-inline-block">
+                        <input type="hidden" name="area" value="BD">
+                        <select name="campaign_id" class="form-select form-select-sm bg-light-subtle rounded-pill border-0 px-3 fw-semibold" style="font-size:0.78rem; width: auto;" onchange="this.form.submit()">
+                            <option value="">All Campaigns</option>
+                            {% for camp in campaigns %}
+                            <option value="{{ camp.id }}" {% if selected_campaign_id == camp.id|stringformat:"s" %}selected{% endif %}>
+                                {{ camp.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </form>
                 </div>
                 <div class="card-body px-4 pb-4 pt-3">
+                    {% if selected_campaign_name %}
+                    <div class="mb-3">
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 small">
+                            <i class="bi bi-funnel me-1"></i>Filtered by: {{ selected_campaign_name }}
+                            <a href="?area=BD" class="text-primary ms-1 text-decoration-none">&times;</a>
+                        </span>
+                    </div>
+                    {% endif %}
                     <div class="d-flex flex-column gap-4 mt-2">
                         {% for status_item in lead_status_counts %}
                         <div>
@@ -363,15 +381,25 @@
                                     <th>Name</th>
                                     <th>Channel</th>
                                     <th>Leads</th>
+                                    <th>Link</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for camp in campaigns %}
-                                <tr>
-                                    <td class="fw-bold text-dark">{{ camp.name }}</td>
+                                <tr class="{% if selected_campaign_id == camp.id|stringformat:'s' %}table-primary-subtle{% endif %}">
+                                    <td class="fw-bold text-body">
+                                        <a href="?area=BD&campaign_id={{ camp.id }}" class="text-decoration-none fw-bold text-body" title="Filter Lead Stage Tracking by {{ camp.name }}">
+                                            {{ camp.name }}
+                                        </a>
+                                    </td>
                                     <td><span class="badge bg-light text-secondary border px-2 py-1">{{ camp.channel }}</span></td>
-                                    <td class="fw-semibold">{{ camp.leads_generated }}</td>
+                                    <td class="fw-semibold">{{ camp.leads.count }}</td>
+                                    <td>
+                                        <button class="btn btn-xs btn-outline-primary rounded-pill p-1 px-2" style="font-size: 0.68rem;" onclick="navigator.clipboard.writeText(window.location.origin + '/public/?campaign={{ camp.id }}'); alert('Campaign intake link copied!');" title="Copy public intake link for this campaign">
+                                            <i class="bi bi-link-45deg me-1"></i>Copy Link
+                                        </button>
+                                    </td>
                                     <td>
                                         <span class="badge rounded-pill {% if camp.status == 'Active' %}bg-success{% elif camp.status == 'Completed' %}bg-secondary{% else %}bg-warning text-dark{% endif %} px-2 py-1">
                                             {{ camp.status }}
@@ -380,7 +408,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="4" class="text-center py-5 text-muted">No campaigns active right now. Let's create one!</td>
+                                    <td colspan="5" class="text-center py-5 text-muted">No campaigns active right now. Let's create one!</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -752,7 +780,7 @@
 <div class="modal fade" id="newCampaignModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg" style="border-radius: 16px;">
-            <form method="post" action="{% url 'member_create' %}"> 
+            <form method="post" action="{% url 'campaign_create' %}"> 
                 {% csrf_token %}
                 <div class="modal-header border-bottom-0 pb-0 pt-4 px-4">
                     <h5 class="modal-title fw-bold text-dark">New Marketing Campaign</h5>

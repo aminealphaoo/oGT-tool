@@ -32,13 +32,21 @@
         </thead>
         <tbody>
             {% for ep in eps %}
-            <tr class="{% if ep.pk in stale_ep_ids %}table-warning{% endif %}">
+            <tr class="{% if ep.stage_alert_level == 'red' %}tr-alert-red{% elif ep.stage_alert_level == 'orange' %}tr-alert-orange{% elif ep.pk in stale_ep_ids %}table-warning{% endif %}">
                 <td><input type="checkbox" name="ep_ids" value="{{ ep.pk }}" class="ep-check"></td>
                 <td>
                     <a href="{% url 'ep_detail' ep.pk %}" class="text-decoration-none fw-semibold">
                         {{ ep.full_name }}
                     </a>
-                    {% if ep.pk in stale_ep_ids %}
+                    {% if ep.stage_alert_level == 'red' %}
+                    <span class="badge stage-alert-badge-red ms-1" title="Stuck in {{ ep.get_current_stage_display }} for {{ ep.current_stage_days }} days! (>7d)">
+                        <i class="bi bi-exclamation-octagon-fill me-1"></i>{{ ep.current_stage_days }}d in stage
+                    </span>
+                    {% elif ep.stage_alert_level == 'orange' %}
+                    <span class="badge stage-alert-badge-orange ms-1" title="Stuck in {{ ep.get_current_stage_display }} for {{ ep.current_stage_days }} days! (3-7d)">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ ep.current_stage_days }}d in stage
+                    </span>
+                    {% elif ep.pk in stale_ep_ids %}
                     <i class="bi bi-clock-history text-warning ms-1" title="Stale"></i>
                     {% endif %}
                     {% if ep.whatsapp_number %}

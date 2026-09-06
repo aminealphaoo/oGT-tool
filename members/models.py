@@ -162,29 +162,10 @@ class Member(models.Model):
 
     # ── Scoped querysets ──────────────────────────────────────────────
     def get_visible_eps(self):
-        """Return EP queryset scoped to this member's role and key area."""
+        """Return all EPs for all members (unrestricted access)."""
         from ops.models import EP
 
-        if self.is_vp():
-            return EP.objects.all()
-        if self.is_tl() and self.team:
-            return EP.objects.filter(
-                models.Q(assigned_area=self.team) |
-                models.Q(assigned_to__team=self.team) |
-                models.Q(assigned_member__team=self.team)
-            ).distinct()
-        # IR members see all EPs for match lab (no contact details)
-        if self.is_ir_team():
-            return EP.objects.all()
-        # BD members see all EPs for data hygiene (no contact details)
-        if self.is_bd_team():
-            return EP.objects.all()
-        # CXP members see only Approved+ EPs
-        if self.is_cxp_team():
-            CXP_STAGES = ["approved", "all_papers_done", "not_all_papers_done", "do_papers", "realized"]
-            return EP.objects.filter(current_stage__in=CXP_STAGES)
-        # Default: own EPs only
-        return EP.objects.filter(models.Q(assigned_member=self) | models.Q(assigned_to=self)).distinct()
+        return EP.objects.all()
 
     def get_visible_irs(self):
         """Return IR queryset scoped to this member's role."""

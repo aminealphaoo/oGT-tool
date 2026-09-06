@@ -100,10 +100,20 @@ def dashboard(request):
         campaigns = Campaign.objects.filter(key_area__key_area="BD").order_by("-start_date")
         leads = Lead.objects.all()
         
+        selected_campaign_id = request.GET.get("campaign_id", "")
+        selected_campaign_name = ""
+        if selected_campaign_id:
+            leads = leads.filter(source_campaign_id=selected_campaign_id)
+            selected_camp = campaigns.filter(id=selected_campaign_id).first()
+            if selected_camp:
+                selected_campaign_name = selected_camp.name
+        
         context["campaigns"] = campaigns[:10]
         context["campaigns_count"] = campaigns.count()
         context["total_leads"] = leads.count()
         context["total_conversions"] = leads.filter(status="Converted").count()
+        context["selected_campaign_id"] = selected_campaign_id
+        context["selected_campaign_name"] = selected_campaign_name
 
         # Lead status tracker progress bars
         status_counts = []
