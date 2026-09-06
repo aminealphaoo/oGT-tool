@@ -2,10 +2,12 @@ Django>=6.0,<6.1
 psycopg2-binary>=2.9
 gunicorn>=22.0
 whitenoise>=6.7
-celery>=5.4
-redis>=5.1
 python-decouple>=3.8
 dj-database-url>=2.3
-django-sslserver
 cloudinary>=1.40
 django-cloudinary-storage>=0.3.0
+Pillow>=10.0
+# Optional (local only, USE_CELERY=True)
+celery>=5.4
+redis>=5.1
+django-sslserver

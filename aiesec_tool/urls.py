@@ -14,10 +14,12 @@ from ops.urls_eps import (
 
 from core.api_whatsapp import WhatsAppWebhookView
 from core.api import api_eps, api_health, api_irs, api_stats
+from core.views import cron_runner, ping
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("public/", include("ops.urls_public")),
+    path("ping/", ping, name="ping"),
     path("", include("dashboard.urls")),
     path("members/", include("members.urls")),
     path("eps/", include("ops.urls_eps")),
@@ -30,7 +32,8 @@ urlpatterns = [
     path("match-lab/", include(match_lab_patterns)),
     path("cxp/", include(cxp_patterns)),
     path("brand/", include(brand_patterns)),
-    # API endpoints
+    # API endpoints (no login — cron routes are secret-protected)
+    path("api/cron/<str:task_name>/", cron_runner, name="cron_runner"),
     path("api/health/", api_health, name="api_health"),
     path("api/eps/", api_eps, name="api_eps"),
     path("api/irs/", api_irs, name="api_irs"),

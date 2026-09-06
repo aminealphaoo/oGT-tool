@@ -1,29 +1,45 @@
 """
-Background tasks — Phase 2+.
-Celery worker calls django.setup() via aiesec_tool/celery.py.
-Do NOT call django.setup() here — it causes double-init when imported by Django.
+Background / scheduled jobs.
+
+Callable as plain Python functions (Render + cron-job.org).
+When USE_CELERY=True they are also registered as Celery tasks.
+Do NOT call django.setup() here.
 """
 from datetime import timedelta
 
-from celery import shared_task
+from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
 
+def _optional_shared_task(func):
+    """Decorate with Celery @shared_task only when USE_CELERY is enabled."""
+    if getattr(settings, "USE_CELERY", False):
+        from celery import shared_task
 
-@shared_task
+        return shared_task(func)
+    return func
+
+
+def dispatch_task(func, *args, **kwargs):
+    """Run a task via Celery .delay() when enabled, otherwise call it in-process."""
+    if getattr(settings, "USE_CELERY", False) and hasattr(func, "delay"):
+        return func.delay(*args, **kwargs)
+    return func(*args, **kwargs)
+
+
+@_optional_shared_task
 def check_stale_cases():
     """
-    Daily check at 09:00:
-    - Cold EPs (idle > 7 days): notify assigned_member, assigned_tl, VP
-    - Ghost Opportunities (10+ days, no match): notify IR owner, IR TL, VP
+    Daily check:
+    - Cold EPs (idle > 7 days): notify assigned member, team TL, VP
+    - Ghost Opportunities (10+ days, no match): notify IR owner, VP
     """
-    from core.models import SiteConfig, Notification
+    from core.models import Notification
     from members.models import Member
     from ops.models import EP, Interaction
     from partners.models import Opportunity
 
-    config = SiteConfig.get()
     now = timezone.now()
     today = now.date()
     cold_notified = 0
@@ -32,15 +48,14 @@ def check_stale_cases():
     vp = Member.objects.filter(role="VP", is_active=True).first()
     vp_user = vp.user if vp else None
 
-    # ── Cold EPs ──────────────────────────────────────────────────────
     cold_cutoff = now - timedelta(days=7)
     cold_eps = EP.objects.filter(
         current_stage__in=["open", "matched_with_opp", "applied", "accepted", "approved"],
         last_activity_at__lt=cold_cutoff,
-    ).select_related("assigned_to", "assigned_tl")
+        is_archived=False,
+    ).select_related("assigned_to", "assigned_member", "assigned_area", "assigned_area__tl")
 
     for ep in cold_eps:
-        # Deduplicate: only one COLD notification per EP per day
         already_sent = Notification.objects.filter(
             title__startswith=f"❄️ Cold EP: {ep.full_name}",
             created_at__date=today,
@@ -49,43 +64,48 @@ def check_stale_cases():
             continue
 
         idle_days = (now - ep.last_activity_at).days
-        msg = f"EP {ep.full_name} has been cold for {idle_days} days at stage '{ep.get_current_stage_display()}'. Please follow up."
+        msg = (
+            f"EP {ep.full_name} has been cold for {idle_days} days at stage "
+            f"'{ep.get_current_stage_display()}'. Please follow up."
+        )
         link = f"/eps/{ep.pk}/"
+        notified_user_ids = set()
 
-        # Notify assigned member
-        if ep.assigned_to and ep.assigned_to.user:
+        assignee = ep.assigned_member or ep.assigned_to
+        if assignee and assignee.user:
             Notification.objects.create(
-                user=ep.assigned_to.user,
+                user=assignee.user,
                 title=f"❄️ Cold EP: {ep.full_name}",
                 message=msg,
                 link=link,
             )
-        # Notify TL
-        if ep.assigned_tl and ep.assigned_tl.user:
+            notified_user_ids.add(assignee.user_id)
+
+        tl = ep.assigned_area.tl if ep.assigned_area else None
+        if tl and tl.user and tl.user_id not in notified_user_ids:
             Notification.objects.create(
-                user=ep.assigned_tl.user,
+                user=tl.user,
                 title=f"❄️ Cold EP: {ep.full_name}",
                 message=msg,
                 link=link,
             )
-        # Notify VP
-        if vp_user and (not ep.assigned_to or ep.assigned_to.user != vp_user):
+            notified_user_ids.add(tl.user_id)
+
+        if vp_user and vp_user.id not in notified_user_ids:
             Notification.objects.create(
                 user=vp_user,
                 title=f"❄️ Cold EP: {ep.full_name}",
                 message=msg,
                 link=link,
             )
-        # Log interaction as before
-        if ep.assigned_to:
-            Interaction.objects.create(
-                ep=ep,
-                author=vp,
-                note=f"⚠️ Auto-alert: EP cold for {idle_days} days at '{ep.get_current_stage_display()}'.",
-            )
+
+        Interaction.objects.create(
+            ep=ep,
+            author=vp,
+            note=f"⚠️ Auto-alert: EP cold for {idle_days} days at '{ep.get_current_stage_display()}'.",
+        )
         cold_notified += 1
 
-    # ── Ghost Opportunities ────────────────────────────────────────────
     ghost_cutoff = now - timedelta(days=10)
     ghost_opps = Opportunity.objects.filter(
         is_open=True,
@@ -102,10 +122,12 @@ def check_stale_cases():
             continue
 
         days_live = (now - opp.created_at).days
-        msg = f"Opportunity '{opp.title}' from {opp.ir.entity_name} has been open {days_live} days with no matches. Re-profile or close."
-        link = f"/partners/ir/{opp.ir.pk}/"
+        msg = (
+            f"Opportunity '{opp.title}' from {opp.ir.entity_name} has been open "
+            f"{days_live} days with no matches. Re-profile or close."
+        )
+        link = f"/irs/{opp.ir.pk}/"
 
-        # Notify IR owner
         if opp.ir.assigned_to and opp.ir.assigned_to.user:
             Notification.objects.create(
                 user=opp.ir.assigned_to.user,
@@ -113,7 +135,6 @@ def check_stale_cases():
                 message=msg,
                 link=link,
             )
-        # Notify VP
         if vp_user:
             Notification.objects.create(
                 user=vp_user,
@@ -130,9 +151,10 @@ def check_stale_cases():
     }
 
 
-@shared_task
+@_optional_shared_task
 def send_stage_email(log_id: int):
-    """Render and actually send a pending EmailLog via Django's email backend."""
+    """Render and send a pending EmailLog via Django's email backend."""
+    from core.models import SiteConfig
     from automation.models import EmailLog
     from ops.models import Interaction
 
@@ -144,16 +166,25 @@ def send_stage_email(log_id: int):
     if log.status != "pending":
         return {"status": "skipped", "message": f"EmailLog {log_id} already {log.status}"}
 
+    if not log.ep.email:
+        log.status = "skipped"
+        log.save(update_fields=["status"])
+        return {"status": "skipped", "message": f"EP {log.ep.full_name} has no email"}
+
+    if not log.template:
+        log.status = "failed"
+        log.save(update_fields=["status"])
+        return {"status": "failed", "message": "Template missing"}
+
     config = SiteConfig.get()
 
     try:
         rendered = log.template.render(log.ep, lc_name=config.lc_name)
 
-        # Send via Django email backend
         send_mail(
             subject=rendered["subject"],
             message=rendered["body"],
-            from_email=None,  # uses DEFAULT_FROM_EMAIL
+            from_email=None,
             recipient_list=[log.ep.email],
             fail_silently=False,
         )
@@ -163,11 +194,10 @@ def send_stage_email(log_id: int):
         log.status = "sent"
         log.save(update_fields=["subject", "body", "status"])
 
-        # Log as interaction
         Interaction.objects.create(
             ep=log.ep,
             author=None,
-            note=f"📧 Auto-email sent: \"{rendered['subject']}\" (template: {log.template.name})",
+            note=f'📧 Auto-email sent: "{rendered["subject"]}" (template: {log.template.name})',
         )
 
         return {"status": "sent", "ep": log.ep.full_name, "template": log.template.name}
@@ -178,12 +208,48 @@ def send_stage_email(log_id: int):
         return {"status": "failed", "error": str(exc)}
 
 
-@shared_task
+def queue_stage_emails_for_ep(ep, stage: str | None = None):
+    """Create pending EmailLogs for an EP stage and send them (sync, or Celery if enabled)."""
+    from automation.models import EmailLog, EmailTemplate
+
+    trigger = stage or ep.current_stage
+    templates = EmailTemplate.objects.filter(trigger_stage=trigger, is_active=True)
+    results = []
+    for template in templates:
+        log = EmailLog.objects.create(
+            ep=ep,
+            template=template,
+            subject=template.subject,
+            body=template.body,
+            status="pending",
+        )
+        results.append(dispatch_task(send_stage_email, log.pk))
+    return results
+
+
+def send_pending_stage_emails():
+    """Drain the EmailLog pending queue (cron fallback if sync SMTP failed)."""
+    from automation.models import EmailLog
+
+    pending_ids = list(
+        EmailLog.objects.filter(status="pending").values_list("pk", flat=True)
+    )
+    results = [send_stage_email(log_id) for log_id in pending_ids]
+    sent = sum(1 for r in results if r.get("status") == "sent")
+    failed = sum(1 for r in results if r.get("status") == "failed")
+    skipped = sum(1 for r in results if r.get("status") == "skipped")
+    return {
+        "processed": len(results),
+        "sent": sent,
+        "failed": failed,
+        "skipped": skipped,
+        "results": results,
+    }
+
+
+@_optional_shared_task
 def send_weekly_digest():
-    """
-    Weekly digest: aggregates stats for WhatsApp / EB meeting.
-    Returns a dict with all key metrics.
-    """
+    """Weekly digest: aggregates stats for WhatsApp / EB meeting."""
     from core.models import SiteConfig
     from members.models import Member
     from ops.models import EP, Interaction
@@ -193,11 +259,15 @@ def send_weekly_digest():
     week_ago = now - timedelta(days=7)
 
     total_eps = EP.objects.count()
-    realized_this_week = EP.objects.filter(
-        current_stage="realized",
-        stage_history__changed_at__gte=week_ago,
-        stage_history__stage="realized",
-    ).distinct().count()
+    realized_this_week = (
+        EP.objects.filter(
+            current_stage="realized",
+            stage_history__changed_at__gte=week_ago,
+            stage_history__stage="realized",
+        )
+        .distinct()
+        .count()
+    )
 
     new_eps_this_week = EP.objects.filter(created_at__gte=week_ago).count()
 
@@ -211,29 +281,33 @@ def send_weekly_digest():
 
     config = SiteConfig.get()
     stale_count = 0
-    for ep in EP.objects.exclude(current_stage="realized"):
+    for ep in EP.objects.exclude(current_stage="realized").only("pk", "current_stage", "last_activity_at"):
         if (now - ep.last_activity_at).days > config.get_threshold(ep.current_stage):
             stale_count += 1
 
     stage_order = [
-        "open", "matched_with_opp", "applied", "accepted",
-        "approved", "all_papers_done", "not_all_papers_done",
-        "do_papers", "realized",
+        "open",
+        "matched_with_opp",
+        "applied",
+        "accepted",
+        "approved",
+        "all_papers_done",
+        "not_all_papers_done",
+        "do_papers",
+        "realized",
     ]
-    funnel = {}
-    for s in stage_order:
-        funnel[EP.Stage(s).label] = EP.objects.filter(current_stage=s).count()
+    funnel = {EP.Stage(s).label: EP.objects.filter(current_stage=s).count() for s in stage_order}
 
     irs = IR.objects.all()
     top_irs = sorted(
-        [{"name": ir.entity_name, "country": ir.country, "realized": ir.realized_count}
-         for ir in irs],
-        key=lambda x: x["realized"], reverse=True
+        [{"name": ir.entity_name, "country": ir.country, "realized": ir.realized_count} for ir in irs],
+        key=lambda x: x["realized"],
+        reverse=True,
     )[:3]
 
     interactions_this_week = Interaction.objects.filter(date__gte=week_ago).count()
 
-    ops_members = Member.objects.filter(role__in=["OPS", "TL"], is_active=True)
+    ops_members = Member.objects.filter(role__in=["MEM", "TL"], is_active=True)
     top_ops = []
     for m in ops_members:
         realized = EP.objects.filter(assigned_to=m, current_stage="realized").count()
@@ -241,7 +315,7 @@ def send_weekly_digest():
             top_ops.append({"name": m.name, "realized": realized})
     top_ops.sort(key=lambda x: x["realized"], reverse=True)
 
-    digest = {
+    return {
         "period": f"{week_ago.strftime('%b %d')} → {now.strftime('%b %d, %Y')}",
         "realized_this_week": realized_this_week,
         "new_eps_this_week": new_eps_this_week,
@@ -254,5 +328,3 @@ def send_weekly_digest():
         "top_irs": top_irs,
         "top_ops": top_ops,
     }
-
-    return digest

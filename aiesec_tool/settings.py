@@ -12,11 +12,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ── Security ──────────────────────────────────────────────────────────
 SECRET_KEY = config("SECRET_KEY", default="dev-secret-key-change-in-production")
 DEBUG = config("DEBUG", default=True, cast=bool)
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
-CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="http://localhost:8000,http://127.0.0.1:8000", cast=Csv())
+
+ALLOWED_HOSTS = list(
+    config("ALLOWED_HOSTS", default="localhost,127.0.0.1,.onrender.com", cast=Csv())
+)
+CSRF_TRUSTED_ORIGINS = list(
+    config(
+        "CSRF_TRUSTED_ORIGINS",
+        default="http://localhost:8000,http://127.0.0.1:8000",
+        cast=Csv(),
+    )
+)
+
+# Render injects the public hostname at runtime
+RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "")
+if RENDER_EXTERNAL_HOSTNAME:
+    if RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+    render_origin = f"https://{RENDER_EXTERNAL_HOSTNAME}"
+    if render_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_origin)
 
 # ── Production security (disabled in DEBUG) ────────────────────────────
 if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=True, cast=bool)
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
@@ -35,7 +54,7 @@ INSTALLED_APPS = [
     # Local apps
     "core",
     "members",
-    "ops",
+    "ops.apps.OpsConfig",
     "partners",
     "dashboard",
     "automation",
@@ -43,9 +62,13 @@ INSTALLED_APPS = [
     "cloudinary_storage",
 ]
 
-# Dev-only apps
+# Dev-only apps (optional — not required on Render)
 if DEBUG:
-    INSTALLED_APPS += ["django_extensions"]
+    try:
+        import django_extensions  # noqa: F401
+        INSTALLED_APPS += ["django_extensions"]
+    except ImportError:
+        pass
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -87,13 +110,13 @@ TEMPLATES = [
 WSGI_APPLICATION = "aiesec_tool.wsgi.application"
 
 # ── Database ───────────────────────────────────────────────────────────
-# PostgreSQL from day one (falls back to SQLite for local dev without DATABASE_URL)
+# PostgreSQL (Supabase) via DATABASE_URL; SQLite fallback for local dev
 DATABASE_URL = config("DATABASE_URL", default="")
 if DATABASE_URL:
     DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=0)}
     DATABASES["default"]["OPTIONS"] = {
-            "sslmode": "require",
-            "connect_timeout": 10,
+        "sslmode": "require",
+        "connect_timeout": 10,
     }
     CONN_HEALTH_CHECKS = True
 else:
@@ -113,18 +136,21 @@ TIME_ZONE = "Africa/Tunis"
 USE_I18N = True
 USE_TZ = True
 
-# ── Static files ──────────────────────────────────────────────────────
+# ── Static files (WhiteNoise) ─────────────────────────────────────────
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
-# ── Static & Media Storage ───────────────────────────────────────────
+
+# ── Media (Cloudinary in production, filesystem locally) ──────────────
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 CLOUDINARY_URL = config("CLOUDINARY_URL", default="")
 
 if CLOUDINARY_URL and not DEBUG:
-    # Production: serve media (uploads) via Cloudinary CDN
     import cloudinary
-    import cloudinary.uploader
-    import cloudinary.api
+    import cloudinary.uploader  # noqa: F401
+    import cloudinary.api  # noqa: F401
+
     cloudinary.config(cloudinary_url=CLOUDINARY_URL)
     STORAGES = {
         "default": {
@@ -135,7 +161,6 @@ if CLOUDINARY_URL and not DEBUG:
         },
     }
 else:
-    # Development or no Cloudinary: use local filesystem
     STORAGES = {
         "default": {
             "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -148,7 +173,7 @@ else:
 # ── Default primary key field ─────────────────────────────────────────
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ── Session (identity picker) ─────────────────────────────────────────
+# ── Session ───────────────────────────────────────────────────────────
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_AGE = 86400 * 30  # 30 days
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
@@ -156,35 +181,45 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 # ── Admin shared password ─────────────────────────────────────────────
 ADMIN_SHARED_PASSWORD = config("ADMIN_SHARED_PASSWORD", default="aiesec-carthage-admin")
 
-# ── Celery (Upstash Redis — free 256 MB) ───────────────────────────
-CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
-CELERY_TIMEZONE = "Africa/Tunis"
-CELERY_TASK_TRACK_STARTED = True
-# SSL for Upstash (rediss:// handled automatically by Celery)
-CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": "CERT_NONE"}
+# ── Cron (cron-job.org → /api/cron/<task>/) ───────────────────────────
+CRON_SECRET = os.environ.get("CRON_SECRET", "change-me-in-production")
 
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": CELERY_BROKER_URL,
+# ── Celery (optional — off on Render free tier) ───────────────────────
+USE_CELERY = os.environ.get("USE_CELERY", "False") == "True"
+
+if USE_CELERY:
+    CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
+    CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL)
+    CELERY_TIMEZONE = "Africa/Tunis"
+    CELERY_TASK_TRACK_STARTED = True
+    if str(CELERY_BROKER_URL).startswith("rediss://"):
+        CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": "CERT_NONE"}
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": CELERY_BROKER_URL,
+        }
     }
-}
-
-# ── File uploads ──────────────────────────────────────────────────────
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+else:
+    CELERY_BROKER_URL = None
+    CELERY_RESULT_BACKEND = None
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "aiesec-tool",
+        }
+    }
 
 # ── Email ──────────────────────────────────────────────────────────────
-# Default: SMTP via Google Workspace (Gmail).
-# Falls back to console backend if no SMTP credentials are set.
-EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_BACKEND = config(
+    "EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend"
+)
 EMAIL_HOST = config("EMAIL_HOST", default="smtp.gmail.com")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
-EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="aminebenattaya@aiesec.net")
-# IMPORTANT: You must generate an App Password in your Google Account for this to work
-EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="zmzszzqispbfjmdg")
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="aminebenattaya@aiesec.net")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@localhost")
 
 # ── AIESEC LC Carthage config (overridable via SiteConfig model) ──────
 LC_NAME = "AIESEC LC Carthage"
