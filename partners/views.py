@@ -28,7 +28,10 @@ def ir_list(request):
     if has_open == "yes":
         irs = irs.filter(opportunities__is_open=True).distinct()
     if assigned:
-        irs = irs.filter(assigned_to_id=assigned)
+        if assigned == "unassigned":
+            irs = irs.filter(assigned_to__isnull=True)
+        else:
+            irs = irs.filter(assigned_to_id=assigned)
     if search:
         irs = irs.filter(
             dj_models.Q(entity_name__icontains=search)
@@ -50,7 +53,7 @@ def ir_list(request):
         "total_count": paginator.count,
         "countries": IR.objects.values_list("country", flat=True).distinct().order_by("country"),
         "opp_types": Opportunity.OppType.choices,
-        "ir_members": Member.objects.filter(role="IR", is_active=True),
+        "ir_members": Member.objects.filter(is_active=True).select_related("team").order_by("name"),
         "current_country": country,
         "current_has_open": has_open,
         "current_assigned": assigned,

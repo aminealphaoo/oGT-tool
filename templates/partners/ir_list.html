@@ -36,8 +36,9 @@
             <label class="form-label small fw-semibold">Assigned To</label>
             <select name="assigned" class="form-select form-select-sm">
                 <option value="">Anyone</option>
+                <option value="unassigned" {% if current_assigned == "unassigned" %}selected{% endif %}>Unassigned</option>
                 {% for m in ir_members %}
-                <option value="{{ m.pk }}" {% if current_assigned == m.pk|stringformat:"s" %}selected{% endif %}>{{ m.name }}</option>
+                <option value="{{ m.pk }}" {% if current_assigned == m.pk|stringformat:"s" %}selected{% endif %}>{{ m.name }}{% if m.team %} ({{ m.team.name }}){% endif %}</option>
                 {% endfor %}
             </select>
         </div>

@@ -119,8 +119,8 @@ def _render_ep_detail_process(request, ep):
     prev_history = ep.stage_history.exclude(stage=ep.current_stage).order_by("-changed_at").first()
     previous_stage = prev_history.stage if prev_history else None
 
-    is_vp = request.current_member.is_vp()
-    is_tl = request.current_member.is_tl()
+    is_vp = request.current_member.is_vp() if request.current_member else False
+    is_tl = request.current_member.is_tl() if request.current_member else False
 
     ctx = {
         "ep": ep,
@@ -229,7 +229,7 @@ def ep_list(request):
         "tracks": EP.Track.choices,
         "stages": EP.Stage.choices,
         "problem_flags": EP.ProblemFlag.choices,
-        "ops_members": Member.objects.filter(role__in=["OPS", "TL"], is_active=True),
+        "ops_members": Member.objects.filter(is_active=True).order_by("name"),
         "current_track": track,
         "current_stage": stage,
         "current_assigned": assigned,
@@ -548,7 +548,7 @@ def ep_bulk_import(request):
         return redirect("ep_list")
 
     return render(request, "ops/bulk_import.html", {
-        "ops_members": Member.objects.filter(role__in=["OPS", "TL"], is_active=True),
+        "ops_members": Member.objects.filter(is_active=True).order_by("name"),
     })
 
 
@@ -711,7 +711,7 @@ def problem_list(request):
         "recently_fixed": recently_fixed,
         "tracks": EP.Track.choices,
         "problem_flags": EP.ProblemFlag.choices,
-        "ops_members": Member.objects.filter(role__in=["OPS", "TL"], is_active=True),
+        "ops_members": Member.objects.filter(is_active=True).order_by("name"),
         "current_track": track,
         "current_flag": flag,
         "current_assigned": assigned,
