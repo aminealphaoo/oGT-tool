@@ -344,6 +344,17 @@ class Attachment(models.Model):
     def __str__(self):
         return f"{self.ep.full_name} — {self.get_label_display()}"
 
+    @property
+    def file_url(self):
+        if not self.file:
+            return ""
+        url = self.file.url
+        if "cloudinary.com" in url and "/image/upload/" in url:
+            file_name = getattr(self.file, "name", "")
+            if file_name.lower().endswith(".pdf") and not url.lower().endswith(".pdf"):
+                return f"{url}.pdf"
+        return url
+
 
 class SavedFilter(models.Model):
     """User-bookmarked filter preset for the EP list."""
