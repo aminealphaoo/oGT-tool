@@ -11,7 +11,10 @@ from .models import IR, Opportunity
 def ir_list(request):
     """Filterable IR table with pagination."""
     member = request.current_member
-    irs = member.get_visible_irs().prefetch_related("opportunities")
+    if member:
+        irs = member.get_visible_irs().prefetch_related("opportunities")
+    else:
+        irs = IR.objects.all().prefetch_related("opportunities")
 
     # ── Filters ──────────────────────────────────────────────────────
     country = request.GET.get("country", "")
@@ -63,20 +66,16 @@ def ir_detail(request, pk):
         pk=pk,
     )
 
-    if not request.current_member.can_view_ir(ir):
+    if request.current_member and not request.current_member.can_view_ir(ir):
         return render(request, "403.html", status=403)
 
     opportunities = ir.opportunities.all()
-    matched_eps = (
-        ir.opportunities.filter(matched_eps__isnull=False)
-        .values_list("matched_eps", flat=True)
-    )
 
     from ops.models import EP
 
     eps_linked = EP.objects.filter(
         match_records__opportunity__ir=ir,
-        match_records__status__in=["Proposed", "Interview Scheduled", "Approved"]
+        match_records__status__in=["proposed", "interview_scheduled", "approved", "Proposed", "Interview Scheduled", "Approved"]
     ).select_related("assigned_to").distinct()
 
     opp_form = OpportunityForm(initial={"ir": ir})
@@ -114,7 +113,7 @@ def ir_edit(request, pk):
     """Edit IR fields."""
     ir = get_object_or_404(IR, pk=pk)
 
-    if not request.current_member.can_view_ir(ir):
+    if request.current_member and not request.current_member.can_view_ir(ir):
         return render(request, "403.html", status=403)
 
     if request.method == "POST":
@@ -148,7 +147,10 @@ def ir_export_csv(request):
     from django.http import HttpResponse
 
     member = request.current_member
-    irs = member.get_visible_irs().prefetch_related("opportunities")
+    if member:
+        irs = member.get_visible_irs().prefetch_related("opportunities")
+    else:
+        irs = IR.objects.all().prefetch_related("opportunities")
 
     response = HttpResponse(content_type="text/csv")
     response["Content-Disposition"] = 'attachment; filename="irs_export.csv"'

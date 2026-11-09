@@ -96,7 +96,9 @@ class EP(models.Model):
     
     @property
     def matched_opportunity(self):
-        match = self.match_records.filter(status__in=['Proposed','Interview Scheduled','Approved']).first()
+        match = self.match_records.filter(
+            status__in=['proposed', 'interview_scheduled', 'approved', 'Proposed', 'Interview Scheduled', 'Approved']
+        ).first()
         return match.opportunity if match else None
 
     @property
