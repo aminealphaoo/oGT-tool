@@ -129,10 +129,9 @@ def dashboard(request):
 
     elif active_area in ["GTE", "GTA"]:
         # GTe / GTa Product Workspace
-        track_map = {"GTE": "GTe", "GTA": "GT"}
-        target_track = track_map[active_area]
+        target_tracks = ["GTe"] if active_area == "GTE" else ["GTa", "GT"]
 
-        product_eps = EP.objects.filter(track=target_track, is_archived=False)
+        product_eps = EP.objects.filter(track__in=target_tracks, is_archived=False)
         context["total_eps"] = product_eps.count()
         context["realized_count"] = product_eps.filter(current_stage="realized").count()
         context["open_matching_count"] = product_eps.filter(current_stage="open").count()
@@ -251,7 +250,7 @@ def leaderboard(request):
             problems_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__problem_flag__in=["fix_ep_problem", "fix_ir_problem"])),
             open_eps_count=Count('assigned_eps', filter=~Q(assigned_eps__current_stage="realized") & Q(assigned_eps__in=eps)),
             interactions_total=Count('interactions', filter=Q(interactions__in=interactions_qs)),
-            gt_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__track="GT")),
+            gt_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__track__in=["GTa", "GT"])),
             gte_count=Count('assigned_eps', filter=Q(assigned_eps__in=eps, assigned_eps__track="GTe")),
         )
 

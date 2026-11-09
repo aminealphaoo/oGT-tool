@@ -351,8 +351,11 @@ class Attachment(models.Model):
         url = self.file.url
         if "cloudinary.com" in url and "/image/upload/" in url:
             file_name = getattr(self.file, "name", "")
-            if file_name.lower().endswith(".pdf") and not url.lower().endswith(".pdf"):
-                return f"{url}.pdf"
+            if file_name.lower().endswith(".pdf"):
+                if url.lower().endswith(".pdf"):
+                    return f"{url[:-4]}.jpg"
+                if not url.lower().endswith((".jpg", ".jpeg", ".png")):
+                    return f"{url}.jpg"
         return url
 
 
@@ -466,8 +469,11 @@ class Contract(models.Model):
         url = self.file.url
         if "cloudinary.com" in url and "/image/upload/" in url:
             file_name = getattr(self.file, "name", "")
-            if file_name.lower().endswith(".pdf") and not url.lower().endswith(".pdf"):
-                return f"{url}.pdf"
+            if file_name.lower().endswith(".pdf"):
+                if url.lower().endswith(".pdf"):
+                    return f"{url[:-4]}.jpg"
+                if not url.lower().endswith((".jpg", ".jpeg", ".png")):
+                    return f"{url}.jpg"
         return url
 
 
@@ -517,8 +523,11 @@ class LegalDocument(models.Model):
         url = self.file.url
         if "cloudinary.com" in url and "/image/upload/" in url:
             file_name = getattr(self.file, "name", "")
-            if file_name.lower().endswith(".pdf") and not url.lower().endswith(".pdf"):
-                return f"{url}.pdf"
+            if file_name.lower().endswith(".pdf"):
+                if url.lower().endswith(".pdf"):
+                    return f"{url[:-4]}.jpg"
+                if not url.lower().endswith((".jpg", ".jpeg", ".png")):
+                    return f"{url}.jpg"
         return url
 
 
