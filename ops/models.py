@@ -459,6 +459,17 @@ class Contract(models.Model):
     def __str__(self):
         return f"{self.get_contract_type_display()} ({self.status})"
 
+    @property
+    def file_url(self):
+        if not self.file:
+            return ""
+        url = self.file.url
+        if "cloudinary.com" in url and "/image/upload/" in url:
+            file_name = getattr(self.file, "name", "")
+            if file_name.lower().endswith(".pdf") and not url.lower().endswith(".pdf"):
+                return f"{url}.pdf"
+        return url
+
 
 class Payment(models.Model):
     PAYMENT_TYPES = [('EP_Fee','Frais EP'),('Partner_Fee','Frais Partenaire'),('Sponsorship','Sponsoring')]
@@ -498,6 +509,17 @@ class LegalDocument(models.Model):
 
     def __str__(self):
         return f"{self.get_document_type_display()} for {self.ep.full_name}"
+
+    @property
+    def file_url(self):
+        if not self.file:
+            return ""
+        url = self.file.url
+        if "cloudinary.com" in url and "/image/upload/" in url:
+            file_name = getattr(self.file, "name", "")
+            if file_name.lower().endswith(".pdf") and not url.lower().endswith(".pdf"):
+                return f"{url}.pdf"
+        return url
 
 
 # ==================== BUSINESS DEVELOPMENT ====================
