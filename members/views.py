@@ -29,7 +29,7 @@ def member_create(request):
         name = request.POST.get("name", "").strip()
         username = request.POST.get("username", "").strip()
         password = request.POST.get("password", "").strip()
-        role = request.POST.get("role", "OPS")
+        role = request.POST.get("role", Member.Role.MEMBER)
         team_id = request.POST.get("team", "")
         email = request.POST.get("email", "").strip()
         phone = request.POST.get("phone", "").strip()

@@ -168,7 +168,7 @@
                             <label class="form-label fw-semibold">Role</label>
                             <select name="role" class="form-select">
                                 {% for val, label in roles %}
-                                <option value="{{ val }}" {% if val == 'OPS' %}selected{% endif %}>{{ label }}</option>
+                                <option value="{{ val }}" {% if val == 'MEM' %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
